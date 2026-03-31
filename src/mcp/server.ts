@@ -10,6 +10,7 @@ import { loadConfig, saveConfig, configExists } from '../lib/config.js';
 import type { OpenTologyConfig } from '../lib/config.js';
 import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails, dropGraph, deleteTriples } from '../lib/oxigraph.js';
 import { validateTurtle } from '../lib/validator.js';
+import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 
 function resolveConfig(params: { endpoint?: string; graphUri?: string }): { endpoint: string; graphUri: string } {
   if (params.endpoint && params.graphUri) {
@@ -43,15 +44,40 @@ async function handleInit(args: Record<string, unknown>): Promise<unknown> {
 
 async function handleValidate(args: Record<string, unknown>): Promise<unknown> {
   const content = args.content as string;
-  return await validateTurtle(content);
+  const shacl = args.shacl as boolean | undefined;
+  const result = await validateTurtle(content);
+
+  if (shacl && result.valid) {
+    const shapePaths = discoverShapes();
+    if (shapePaths.length > 0) {
+      const report = await validateWithShacl(content, shapePaths);
+      return { ...result, shacl: report };
+    }
+    return { ...result, shacl: { conforms: true, violations: [], note: 'no shapes found' } };
+  }
+
+  return result;
 }
 
 async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   const content = args.content as string;
   const replace = args.replace as boolean | undefined;
+  const shacl = args.shacl as boolean | undefined;
   const validation = await validateTurtle(content);
   if (!validation.valid) {
     throw new Error(`Invalid Turtle: ${validation.error}`);
+  }
+
+  // Auto-validate against SHACL when shapes exist (unless explicitly false)
+  if (shacl !== false && hasShapes()) {
+    const shapePaths = discoverShapes();
+    const report = await validateWithShacl(content, shapePaths);
+    if (!report.conforms) {
+      const violationMessages = report.violations
+        .map((v) => `SHACL Violation: ${v.focusNode} — ${v.message} (path: ${v.path})`)
+        .join('\n');
+      throw new Error(`SHACL validation failed:\n${violationMessages}`);
+    }
   }
 
   const { endpoint, graphUri } = resolveConfig({
@@ -235,7 +261,7 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'opentology_validate',
-        description: 'Validate Turtle (RDF) content for syntax correctness. Returns triple count and prefixes if valid, or an error message if invalid. Use before pushing to catch errors early.',
+        description: 'Validate Turtle (RDF) content for syntax correctness. Returns triple count and prefixes if valid, or an error message if invalid. Use before pushing to catch errors early. When shacl is true, also validates against SHACL shapes in shapes/ directory.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -243,13 +269,17 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Turtle (RDF) content to validate',
             },
+            shacl: {
+              type: 'boolean',
+              description: 'If true, also validate against SHACL shapes in shapes/ directory',
+            },
           },
           required: ['content'],
         },
       },
       {
         name: 'opentology_push',
-        description: 'Validate and insert Turtle (RDF) triples into the project graph. Validates syntax first, then pushes to the SPARQL endpoint. Returns success status and triple count.',
+        description: 'Validate and insert Turtle (RDF) triples into the project graph. Validates syntax first, then pushes to the SPARQL endpoint. Auto-validates against SHACL shapes when shapes/ directory exists. Returns success status and triple count.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -260,6 +290,10 @@ export async function startMcpServer(): Promise<void> {
             replace: {
               type: 'boolean',
               description: 'If true, drop the entire graph before inserting (replace mode)',
+            },
+            shacl: {
+              type: 'boolean',
+              description: 'Set to false to skip SHACL validation. When shapes exist and this is not explicitly false, SHACL validation runs automatically.',
             },
             endpoint: {
               type: 'string',

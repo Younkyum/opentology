@@ -3,13 +3,15 @@ import { readFileSync } from 'node:fs';
 import { loadConfig } from '../lib/config.js';
 import { insertTurtle, dropGraph } from '../lib/oxigraph.js';
 import { validateTurtleFile } from '../lib/validator.js';
+import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 
 export function registerPush(program: Command): void {
   program
     .command('push <file>')
     .description('Push a Turtle file to the triplestore')
     .option('--replace', 'Replace entire graph contents (drop + push)')
-    .action(async (file: string, opts: { replace?: boolean }) => {
+    .option('--no-shacl', 'Skip SHACL validation')
+    .action(async (file: string, opts: { replace?: boolean; shacl?: boolean }) => {
       let config;
       try {
         config = loadConfig();
@@ -27,6 +29,19 @@ export function registerPush(program: Command): void {
         }
 
         const turtle = readFileSync(file, 'utf-8');
+
+        // Auto-validate against SHACL when shapes exist (unless --no-shacl)
+        if (opts.shacl !== false && hasShapes()) {
+          const shapePaths = discoverShapes();
+          const report = await validateWithShacl(turtle, shapePaths);
+          if (!report.conforms) {
+            for (const v of report.violations) {
+              console.error(`SHACL Violation: ${v.focusNode} — ${v.message} (path: ${v.path})`);
+            }
+            process.exit(1);
+          }
+          console.log('SHACL: conforms');
+        }
 
         if (opts.replace) {
           await dropGraph(config.endpoint, config.graphUri);
