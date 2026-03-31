@@ -36,6 +36,7 @@ opentology query 'SELECT ?name WHERE { ?s schema:name ?name }'
 - **6 CLI commands** -- init, validate, push, query, status, pull
 - **Auto Named Graph scoping** -- no need to write `GRAPH <...>` in your queries
 - **MCP Server** for AI agent integration (Claude Code, Cursor, etc.)
+- **Schema introspection via MCP resource and tool**
 - **Turtle validation** before every push
 - **Oxigraph-powered** -- Rust-based, fast, full SPARQL 1.1 support
 
@@ -116,11 +117,15 @@ Your AI assistant can directly push Turtle, run SPARQL queries, and manage your 
 
 ### Roadmap
 
-- [ ] Cloud hosted service
-- [ ] Web dashboard
-- [ ] SDK (JavaScript / Python)
-- [ ] Auth and multi-tenancy
-- [ ] MCP resource support
+- [x] CLI with 6 commands (init, validate, push, query, status, pull)
+- [x] MCP Server for AI agent integration
+- [x] Schema introspection (MCP resource + tool)
+- [ ] Complete CRUD (push --replace, drop, delete)
+- [ ] SHACL validation (shape constraints on push)
+- [ ] DX polish (diff, colors, better errors)
+- [ ] Multi-graph support
+- [ ] Schema tooling & namespace management
+- [ ] Embedded mode (no Docker required)
 
 ### Contributing
 
@@ -165,6 +170,7 @@ opentology query 'SELECT ?name WHERE { ?s schema:name ?name }'
 - **CLI 명령어 6개** -- init, validate, push, query, status, pull
 - **Named Graph 자동 스코핑** -- 쿼리에 `GRAPH <...>`를 직접 쓸 필요 없음
 - **MCP 서버** 내장으로 AI 에이전트 연동 (Claude Code, Cursor 등)
+- **MCP 리소스와 도구를 통한 스키마 조회**
 - **Turtle 문법 검증** 후 푸시
 - **Oxigraph 기반** -- Rust로 작성된 고성능 SPARQL 1.1 트리플스토어
 
@@ -245,11 +251,15 @@ AI 어시스턴트가 대화 중에 직접 Turtle을 푸시하고, SPARQL 쿼리
 
 ### 로드맵
 
-- [ ] 클라우드 호스팅 서비스
-- [ ] 웹 대시보드
-- [ ] SDK (JavaScript / Python)
-- [ ] 인증 및 멀티테넌시
-- [ ] MCP 리소스 지원
+- [x] CLI 6개 커맨드 (init, validate, push, query, status, pull)
+- [x] AI 에이전트 연동 MCP 서버
+- [x] 스키마 조회 (MCP 리소스 + 도구)
+- [ ] CRUD 완성 (push --replace, drop, delete)
+- [ ] SHACL 검증 (push 시 제약조건 자동 검증)
+- [ ] DX 개선 (diff, 컬러 출력, 에러 메시지)
+- [ ] 멀티 그래프 지원
+- [ ] 스키마 도구 및 네임스페이스 관리
+- [ ] 임베디드 모드 (Docker 불필요)
 
 ### 기여 방법
 
