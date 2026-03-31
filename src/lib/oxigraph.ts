@@ -190,6 +190,143 @@ export function autoScopeQuery(sparql: string, graphUri: string): string | null 
   return `${before} GRAPH <${graphUri}> {${inner}} ${after}`;
 }
 
+const WELL_KNOWN_PREFIXES: Record<string, string> = {
+  'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf',
+  'http://www.w3.org/2000/01/rdf-schema#': 'rdfs',
+  'http://www.w3.org/2002/07/owl#': 'owl',
+  'http://schema.org/': 'schema',
+  'http://xmlns.com/foaf/0.1/': 'foaf',
+  'http://www.w3.org/2001/XMLSchema#': 'xsd',
+  'http://purl.org/dc/elements/1.1/': 'dc',
+  'http://purl.org/dc/terms/': 'dcterms',
+  'http://www.w3.org/2004/02/skos/core#': 'skos',
+  'http://www.w3.org/ns/prov#': 'prov',
+};
+
+function extractPrefixes(uris: string[]): Record<string, string> {
+  const prefixes: Record<string, string> = {};
+
+  for (const uri of uris) {
+    // Check well-known prefixes first
+    for (const [ns, prefix] of Object.entries(WELL_KNOWN_PREFIXES)) {
+      if (uri.startsWith(ns) && !(prefix in Object.values(prefixes))) {
+        prefixes[prefix] = ns;
+        break;
+      }
+    }
+
+    // If not matched by well-known, derive from URI structure
+    if (!Object.values(prefixes).some((ns) => uri.startsWith(ns))) {
+      // Try hash-based namespace (e.g. http://example.org/ontology#)
+      const hashIdx = uri.lastIndexOf('#');
+      if (hashIdx !== -1) {
+        const ns = uri.slice(0, hashIdx + 1);
+        if (!Object.values(prefixes).includes(ns)) {
+          // Derive a short prefix from the last path segment before the hash
+          const pathSegments = ns.replace(/#$/, '').split('/').filter(Boolean);
+          const candidate = pathSegments[pathSegments.length - 1]
+            ?.toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+            .slice(0, 8);
+          if (candidate && !(candidate in prefixes)) {
+            prefixes[candidate] = ns;
+          }
+        }
+      } else {
+        // Slash-based namespace (e.g. http://example.org/ontology/)
+        const slashIdx = uri.lastIndexOf('/');
+        if (slashIdx !== -1) {
+          const ns = uri.slice(0, slashIdx + 1);
+          if (!Object.values(prefixes).includes(ns)) {
+            const pathSegments = ns.replace(/\/$/, '').split('/').filter(Boolean);
+            const candidate = pathSegments[pathSegments.length - 1]
+              ?.toLowerCase()
+              .replace(/[^a-z0-9]/g, '')
+              .slice(0, 8);
+            if (candidate && !(candidate in prefixes)) {
+              prefixes[candidate] = ns;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return prefixes;
+}
+
+export async function getSchemaOverview(
+  endpoint: string,
+  graphUri: string
+): Promise<{ prefixes: Record<string, string>; classes: string[]; properties: string[]; tripleCount: number }> {
+  const tripleCount = await getGraphTripleCount(endpoint, graphUri);
+
+  const classResults = await sparqlQuery(
+    endpoint,
+    `SELECT DISTINCT ?class WHERE { GRAPH <${graphUri}> { ?s a ?class } } ORDER BY ?class`
+  );
+  const classes = classResults.results.bindings
+    .map((b) => b['class']?.value)
+    .filter((v): v is string => v !== undefined);
+
+  const propResults = await sparqlQuery(
+    endpoint,
+    `SELECT DISTINCT ?prop WHERE { GRAPH <${graphUri}> { ?s ?prop ?o } } ORDER BY ?prop`
+  );
+  const properties = propResults.results.bindings
+    .map((b) => b['prop']?.value)
+    .filter((v): v is string => v !== undefined);
+
+  const prefixes = extractPrefixes([...classes, ...properties]);
+
+  return { prefixes, classes, properties, tripleCount };
+}
+
+export async function getClassDetails(
+  endpoint: string,
+  graphUri: string,
+  classUri: string
+): Promise<{
+  classUri: string;
+  instanceCount: number;
+  properties: Array<{ property: string; count: number }>;
+  sampleTriples: Array<{ s: string; p: string; o: string }>;
+}> {
+  const countResults = await sparqlQuery(
+    endpoint,
+    `SELECT (COUNT(?s) as ?count) WHERE { GRAPH <${graphUri}> { ?s a <${classUri}> } }`
+  );
+  const countBinding = countResults.results.bindings[0];
+  const instanceCount = countBinding?.['count']
+    ? parseInt(countBinding['count'].value, 10)
+    : 0;
+
+  const propResults = await sparqlQuery(
+    endpoint,
+    `SELECT ?prop (COUNT(?prop) as ?count) WHERE { GRAPH <${graphUri}> { ?s a <${classUri}> . ?s ?prop ?o } } GROUP BY ?prop ORDER BY DESC(?count)`
+  );
+  const properties = propResults.results.bindings
+    .filter((b) => b['prop'] && b['count'])
+    .map((b) => ({
+      property: b['prop']!.value,
+      count: parseInt(b['count']!.value, 10),
+    }));
+
+  const sampleResults = await sparqlQuery(
+    endpoint,
+    `SELECT ?s ?p ?o WHERE { GRAPH <${graphUri}> { ?s a <${classUri}> . ?s ?p ?o } } LIMIT 5`
+  );
+  const sampleTriples = sampleResults.results.bindings
+    .filter((b) => b['s'] && b['p'] && b['o'])
+    .map((b) => ({
+      s: b['s']!.value,
+      p: b['p']!.value,
+      o: b['o']!.value,
+    }));
+
+  return { classUri, instanceCount, properties, sampleTriples };
+}
+
 export async function exportGraph(
   endpoint: string,
   graphUri: string

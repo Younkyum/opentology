@@ -3,10 +3,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, saveConfig, configExists } from '../lib/config.js';
 import type { OpenTologyConfig } from '../lib/config.js';
-import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery } from '../lib/oxigraph.js';
+import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails } from '../lib/oxigraph.js';
 import { validateTurtle } from '../lib/validator.js';
 
 function resolveConfig(params: { endpoint?: string; graphUri?: string }): { endpoint: string; graphUri: string } {
@@ -108,11 +110,71 @@ async function handlePull(args: Record<string, unknown>): Promise<unknown> {
   return turtle;
 }
 
+async function handleSchema(args: Record<string, unknown>): Promise<unknown> {
+  const { endpoint, graphUri } = resolveConfig({
+    endpoint: args.endpoint as string | undefined,
+    graphUri: args.graphUri as string | undefined,
+  });
+
+  const classUri = args.class as string | undefined;
+
+  if (classUri) {
+    // Drill down into specific class
+    return await getClassDetails(endpoint, graphUri, classUri);
+  } else {
+    // Return full overview (same as resource but callable on-demand)
+    return await getSchemaOverview(endpoint, graphUri);
+  }
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new Server(
     { name: 'opentology', version: '0.1.0' },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {}, resources: {} } }
   );
+
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [
+      {
+        uri: 'opentology://schema',
+        name: 'Ontology Schema Overview',
+        description: 'Prefix mappings, class list, and property list for the current project graph. Lightweight summary for SPARQL query context.',
+        mimeType: 'application/json',
+      },
+    ],
+  }));
+
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+
+    if (uri === 'opentology://schema') {
+      try {
+        const { endpoint, graphUri } = resolveConfig({});
+        const overview = await getSchemaOverview(endpoint, graphUri);
+        return {
+          contents: [
+            {
+              uri: 'opentology://schema',
+              mimeType: 'application/json',
+              text: JSON.stringify(overview, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          contents: [
+            {
+              uri: 'opentology://schema',
+              mimeType: 'text/plain',
+              text: `Error loading schema: ${(error as Error).message}`,
+            },
+          ],
+        };
+      }
+    }
+
+    throw new Error(`Unknown resource: ${uri}`);
+  });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
@@ -230,6 +292,27 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'opentology_schema',
+        description: 'Inspect the ontology schema. Without parameters, returns all classes and properties (same as opentology://schema resource). With a class parameter, returns detailed info: instance count, properties used by that class, and sample triples.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            class: {
+              type: 'string',
+              description: 'URI of a specific class to inspect (e.g., "http://schema.org/Person"). If omitted, returns the full schema overview.',
+            },
+            endpoint: {
+              type: 'string',
+              description: 'SPARQL endpoint URL (uses config default if omitted)',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -255,6 +338,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_pull':
           result = await handlePull(args as Record<string, unknown>);
+          break;
+        case 'opentology_schema':
+          result = await handleSchema(args as Record<string, unknown>);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);
