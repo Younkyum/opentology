@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
+import pc from 'picocolors';
 import { loadConfig } from '../lib/config.js';
 import { deleteTriples } from '../lib/oxigraph.js';
 
@@ -26,10 +27,10 @@ export function registerDelete(program: Command): void {
         if (file) {
           const content = readFileSync(file, 'utf-8');
           await deleteTriples(config.endpoint, config.graphUri, { turtle: content });
-          console.log(`Deleted triples from ${file}`);
+          console.log(pc.green(`Deleted triples from ${file}`));
         } else if (opts.where) {
           await deleteTriples(config.endpoint, config.graphUri, { where: opts.where });
-          console.log('Deleted triples matching pattern');
+          console.log(pc.green('Deleted triples matching pattern'));
         }
       } catch (err) {
         console.error(`Error: ${(err as Error).message}`);

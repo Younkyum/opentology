@@ -8,7 +8,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, saveConfig, configExists } from '../lib/config.js';
 import type { OpenTologyConfig } from '../lib/config.js';
-import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails, dropGraph, deleteTriples } from '../lib/oxigraph.js';
+import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails, dropGraph, deleteTriples, diffGraph } from '../lib/oxigraph.js';
 import { validateTurtle } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 
@@ -188,6 +188,20 @@ async function handleDelete(args: Record<string, unknown>): Promise<unknown> {
 
   await deleteTriples(endpoint, graphUri, { turtle: content, where });
   return { success: true };
+}
+
+async function handleDiff(args: Record<string, unknown>): Promise<unknown> {
+  const content = args.content as string;
+  if (!content) {
+    throw new Error('content (Turtle) is required');
+  }
+
+  const { endpoint, graphUri } = resolveConfig({
+    endpoint: args.endpoint as string | undefined,
+    graphUri: args.graphUri as string | undefined,
+  });
+
+  return await diffGraph(endpoint, graphUri, content);
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -435,6 +449,28 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'opentology_diff',
+        description: 'Compare local Turtle content against the remote graph. Returns added triples (in local but not remote), removed triples (in remote but not local), and count of unchanged triples.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            content: {
+              type: 'string',
+              description: 'Turtle (RDF) content to compare against the remote graph',
+            },
+            endpoint: {
+              type: 'string',
+              description: 'SPARQL endpoint URL (uses config default if omitted)',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+          required: ['content'],
+        },
+      },
     ],
   }));
 
@@ -469,6 +505,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_delete':
           result = await handleDelete(args as Record<string, unknown>);
+          break;
+        case 'opentology_diff':
+          result = await handleDiff(args as Record<string, unknown>);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);

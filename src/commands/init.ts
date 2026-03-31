@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { basename } from 'node:path';
+import pc from 'picocolors';
 import { configExists, saveConfig } from '../lib/config.js';
 
 function slugify(name: string): string {
@@ -31,7 +32,7 @@ export function registerInit(program: Command): void {
 
       saveConfig({ projectId: id, endpoint, graphUri });
 
-      console.log(`Initialized OpenTology project.`);
+      console.log(pc.green(`Initialized OpenTology project.`));
       console.log(`  Project ID: ${id}`);
       console.log(`  Endpoint:   ${endpoint}`);
       console.log(`  Graph URI:  ${graphUri}`);

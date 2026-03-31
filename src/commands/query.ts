@@ -31,13 +31,29 @@ function formatTable(vars: string[], bindings: Array<Record<string, { type: stri
   return [header, separator, ...rows].join('\n');
 }
 
+function formatCsv(vars: string[], bindings: Array<Record<string, { type: string; value: string }>>): string {
+  const header = vars.join(',');
+  const rows = bindings.map(row =>
+    vars.map(v => {
+      const val = row[v]?.value ?? '';
+      // Escape values containing commas, quotes, or newlines
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    }).join(',')
+  );
+  return [header, ...rows].join('\n');
+}
+
 export function registerQuery(program: Command): void {
   program
     .command('query <sparql>')
     .description('Run a SPARQL query against the triplestore')
-    .option('--json', 'Output raw JSON')
+    .option('--format <type>', 'Output format: table, json, csv', 'table')
+    .option('--json', 'Output raw JSON (alias for --format json)')
     .option('--raw', 'Skip automatic Named Graph scoping')
-    .action(async (sparql: string, options: { json?: boolean; raw?: boolean }) => {
+    .action(async (sparql: string, options: { format?: string; json?: boolean; raw?: boolean }) => {
       let config;
       try {
         config = loadConfig();
@@ -45,6 +61,9 @@ export function registerQuery(program: Command): void {
         console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
+
+      // Resolve format: --json flag overrides --format
+      const format = options.json ? 'json' : (options.format || 'table');
 
       // Auto-scope the query to the project's Named Graph unless the user
       // has already specified graph scoping or passed --raw.
@@ -62,14 +81,21 @@ export function registerQuery(program: Command): void {
       try {
         const results = await sparqlQuery(config.endpoint, effectiveSparql);
 
-        if (options.json) {
-          console.log(JSON.stringify(results, null, 2));
-        } else {
-          const output = formatTable(results.head.vars, results.results.bindings);
-          console.log(output);
+        switch (format) {
+          case 'json':
+            console.log(JSON.stringify(results, null, 2));
+            break;
+          case 'csv':
+            console.log(formatCsv(results.head.vars, results.results.bindings));
+            break;
+          default: {
+            const output = formatTable(results.head.vars, results.results.bindings);
+            console.log(output);
 
-          if (results.results.bindings.length === 0) {
-            console.log(`\nHint: use GRAPH <${config.graphUri}> in your WHERE clause`);
+            if (results.results.bindings.length === 0) {
+              console.log(`\nHint: use GRAPH <${config.graphUri}> in your WHERE clause`);
+            }
+            break;
           }
         }
       } catch (err) {

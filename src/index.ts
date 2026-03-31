@@ -10,6 +10,7 @@ import { registerDrop } from './commands/drop.js';
 import { registerDelete } from './commands/delete.js';
 import { registerMcp } from './commands/mcp.js';
 import { registerShapes } from './commands/shapes.js';
+import { registerDiff } from './commands/diff.js';
 
 const program = new Command();
 program
@@ -27,5 +28,6 @@ registerDrop(program);
 registerDelete(program);
 registerMcp(program);
 registerShapes(program);
+registerDiff(program);
 
 program.parse(process.argv);

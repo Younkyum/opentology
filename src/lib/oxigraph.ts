@@ -357,6 +357,47 @@ export async function getClassDetails(
   return { classUri, instanceCount, properties, sampleTriples };
 }
 
+export async function diffGraph(
+  endpoint: string,
+  graphUri: string,
+  localTurtle: string
+): Promise<{ added: string[]; removed: string[]; unchanged: number }> {
+  const localQuads = await parseTurtle(localTurtle);
+  const localSet = new Set(
+    localQuads.map((q) => `${termToSparql(q.subject)} ${termToSparql(q.predicate)} ${termToSparql(q.object)}`)
+  );
+
+  // Fetch remote quads via CONSTRUCT
+  const query = `CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <${graphUri}> { ?s ?p ?o } }`;
+  const response = await fetch(`${endpoint}/query`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/sparql-query',
+      Accept: 'text/turtle',
+    },
+    body: query,
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `SPARQL CONSTRUCT query failed (${response.status} ${response.statusText})${body ? `: ${body}` : ''}`
+    );
+  }
+
+  const remoteTurtle = await response.text();
+  const remoteQuads = remoteTurtle.trim() ? await parseTurtle(remoteTurtle) : [];
+  const remoteSet = new Set(
+    remoteQuads.map((q) => `${termToSparql(q.subject)} ${termToSparql(q.predicate)} ${termToSparql(q.object)}`)
+  );
+
+  const added = [...localSet].filter((t) => !remoteSet.has(t));
+  const removed = [...remoteSet].filter((t) => !localSet.has(t));
+  const unchanged = [...localSet].filter((t) => remoteSet.has(t)).length;
+
+  return { added, removed, unchanged };
+}
+
 export async function exportGraph(
   endpoint: string,
   graphUri: string

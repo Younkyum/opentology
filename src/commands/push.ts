@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
+import pc from 'picocolors';
 import { loadConfig } from '../lib/config.js';
 import { insertTurtle, dropGraph } from '../lib/oxigraph.js';
 import { validateTurtleFile } from '../lib/validator.js';
@@ -36,7 +37,7 @@ export function registerPush(program: Command): void {
           const report = await validateWithShacl(turtle, shapePaths);
           if (!report.conforms) {
             for (const v of report.violations) {
-              console.error(`SHACL Violation: ${v.focusNode} — ${v.message} (path: ${v.path})`);
+              console.error(pc.red(`SHACL Violation: ${v.focusNode} — ${v.message} (path: ${v.path})`));
             }
             process.exit(1);
           }
@@ -50,12 +51,19 @@ export function registerPush(program: Command): void {
         await insertTurtle(config.endpoint, config.graphUri, turtle);
 
         if (opts.replace) {
-          console.log(`Replaced graph with ${result.tripleCount} triples`);
+          console.log(pc.green(`Replaced graph with ${result.tripleCount} triples`));
         } else {
-          console.log(`Pushed ${result.tripleCount} triples to ${config.graphUri}`);
+          console.log(pc.green(`Pushed ${result.tripleCount} triples to ${config.graphUri}`));
         }
       } catch (err) {
-        console.error(`Error: ${(err as Error).message}`);
+        const message = (err as Error).message;
+        if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
+          console.error(
+            `Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`
+          );
+        } else {
+          console.error(`Error: ${message}`);
+        }
         process.exit(1);
       }
     });

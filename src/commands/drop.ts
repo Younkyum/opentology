@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import pc from 'picocolors';
 import { loadConfig } from '../lib/config.js';
 import { dropGraph } from '../lib/oxigraph.js';
 
@@ -18,14 +19,14 @@ export function registerDrop(program: Command): void {
 
       if (!opts.force) {
         console.error(
-          `This will delete all triples in ${config.graphUri}. Use --force to confirm.`
+          pc.red(`This will delete all triples in ${config.graphUri}. Use --force to confirm.`)
         );
         process.exit(1);
       }
 
       try {
         await dropGraph(config.endpoint, config.graphUri);
-        console.log(`Dropped graph ${config.graphUri}`);
+        console.log(pc.green(`Dropped graph ${config.graphUri}`));
       } catch (err) {
         console.error(`Error: ${(err as Error).message}`);
         process.exit(1);

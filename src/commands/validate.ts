@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
+import pc from 'picocolors';
 import { validateTurtleFile } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl } from '../lib/shacl.js';
 
@@ -14,9 +15,9 @@ export function registerValidate(program: Command): void {
 
         if (result.valid) {
           const prefixList = Object.keys(result.prefixes).join(', ') || '(none)';
-          console.log(`Valid — ${result.tripleCount} triples, prefixes: ${prefixList}`);
+          console.log(pc.green(`Valid — ${result.tripleCount} triples, prefixes: ${prefixList}`));
         } else {
-          console.error(`Validation failed: ${result.error}`);
+          console.error(pc.red(`Validation failed: ${result.error}`));
           process.exit(1);
         }
 
@@ -28,10 +29,10 @@ export function registerValidate(program: Command): void {
             const content = readFileSync(file, 'utf-8');
             const report = await validateWithShacl(content, shapePaths);
             if (report.conforms) {
-              console.log('SHACL: conforms');
+              console.log(pc.green('SHACL: conforms'));
             } else {
               for (const v of report.violations) {
-                console.error(`SHACL Violation: ${v.focusNode} — ${v.message} (path: ${v.path})`);
+                console.error(pc.yellow(`SHACL Violation: ${v.focusNode} — ${v.message} (path: ${v.path})`));
               }
               process.exit(1);
             }
