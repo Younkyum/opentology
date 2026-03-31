@@ -8,7 +8,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, saveConfig, configExists } from '../lib/config.js';
 import type { OpenTologyConfig } from '../lib/config.js';
-import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails } from '../lib/oxigraph.js';
+import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails, dropGraph, deleteTriples } from '../lib/oxigraph.js';
 import { validateTurtle } from '../lib/validator.js';
 
 function resolveConfig(params: { endpoint?: string; graphUri?: string }): { endpoint: string; graphUri: string } {
@@ -48,6 +48,7 @@ async function handleValidate(args: Record<string, unknown>): Promise<unknown> {
 
 async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   const content = args.content as string;
+  const replace = args.replace as boolean | undefined;
   const validation = await validateTurtle(content);
   if (!validation.valid) {
     throw new Error(`Invalid Turtle: ${validation.error}`);
@@ -58,8 +59,12 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
     graphUri: args.graphUri as string | undefined,
   });
 
+  if (replace) {
+    await dropGraph(endpoint, graphUri);
+  }
+
   await insertTurtle(endpoint, graphUri, content);
-  return { success: true, tripleCount: validation.tripleCount };
+  return { success: true, tripleCount: validation.tripleCount, replaced: !!replace };
 }
 
 async function handleQuery(args: Record<string, unknown>): Promise<unknown> {
@@ -125,6 +130,38 @@ async function handleSchema(args: Record<string, unknown>): Promise<unknown> {
     // Return full overview (same as resource but callable on-demand)
     return await getSchemaOverview(endpoint, graphUri);
   }
+}
+
+async function handleDrop(args: Record<string, unknown>): Promise<unknown> {
+  const confirm = args.confirm as boolean;
+  if (!confirm) {
+    throw new Error('Drop requires confirm: true to prevent accidental deletion.');
+  }
+
+  const { endpoint, graphUri } = resolveConfig({
+    endpoint: args.endpoint as string | undefined,
+    graphUri: args.graphUri as string | undefined,
+  });
+
+  await dropGraph(endpoint, graphUri);
+  return { success: true, graphUri };
+}
+
+async function handleDelete(args: Record<string, unknown>): Promise<unknown> {
+  const content = args.content as string | undefined;
+  const where = args.where as string | undefined;
+
+  if (!content && !where) {
+    throw new Error('Provide either content (Turtle) or where (SPARQL pattern)');
+  }
+
+  const { endpoint, graphUri } = resolveConfig({
+    endpoint: args.endpoint as string | undefined,
+    graphUri: args.graphUri as string | undefined,
+  });
+
+  await deleteTriples(endpoint, graphUri, { turtle: content, where });
+  return { success: true };
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -220,6 +257,10 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Turtle (RDF) content to insert',
             },
+            replace: {
+              type: 'boolean',
+              description: 'If true, drop the entire graph before inserting (replace mode)',
+            },
             endpoint: {
               type: 'string',
               description: 'SPARQL endpoint URL (uses config default if omitted)',
@@ -313,6 +354,53 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'opentology_drop',
+        description: 'Drop (delete) the entire project graph. Requires confirm: true to prevent accidental deletion.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            confirm: {
+              type: 'boolean',
+              description: 'Must be true to confirm graph deletion',
+            },
+            endpoint: {
+              type: 'string',
+              description: 'SPARQL endpoint URL (uses config default if omitted)',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+          required: ['confirm'],
+        },
+      },
+      {
+        name: 'opentology_delete',
+        description: 'Delete specific triples. Provide Turtle content to remove those exact triples, or a SPARQL WHERE pattern for pattern-based deletion.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            content: {
+              type: 'string',
+              description: 'Turtle (RDF) content specifying triples to delete',
+            },
+            where: {
+              type: 'string',
+              description: 'SPARQL WHERE pattern for pattern-based deletion (e.g., "?s a <http://schema.org/Person>")',
+            },
+            endpoint: {
+              type: 'string',
+              description: 'SPARQL endpoint URL (uses config default if omitted)',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -341,6 +429,12 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_schema':
           result = await handleSchema(args as Record<string, unknown>);
+          break;
+        case 'opentology_drop':
+          result = await handleDrop(args as Record<string, unknown>);
+          break;
+        case 'opentology_delete':
+          result = await handleDelete(args as Record<string, unknown>);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);

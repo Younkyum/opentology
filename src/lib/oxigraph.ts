@@ -255,6 +255,36 @@ function extractPrefixes(uris: string[]): Record<string, string> {
   return prefixes;
 }
 
+export async function dropGraph(endpoint: string, graphUri: string): Promise<void> {
+  await sparqlUpdate(endpoint, `DROP SILENT GRAPH <${graphUri}>`);
+}
+
+export async function deleteTriples(
+  endpoint: string,
+  graphUri: string,
+  options: { turtle?: string; where?: string }
+): Promise<void> {
+  if (options.turtle !== undefined) {
+    const quads = await parseTurtle(options.turtle);
+
+    if (quads.length === 0) {
+      return;
+    }
+
+    const tripleLines = quads
+      .map((q) => `  ${termToSparql(q.subject)} ${termToSparql(q.predicate)} ${termToSparql(q.object)} .`)
+      .join('\n');
+
+    const update = `DELETE DATA {\n  GRAPH <${graphUri}> {\n${tripleLines}\n  }\n}`;
+    await sparqlUpdate(endpoint, update);
+  } else if (options.where !== undefined) {
+    const update = `DELETE { GRAPH <${graphUri}> { ?s ?p ?o } } WHERE { GRAPH <${graphUri}> { ?s ?p ?o . ${options.where} } }`;
+    await sparqlUpdate(endpoint, update);
+  } else {
+    throw new Error('deleteTriples: either options.turtle or options.where must be provided');
+  }
+}
+
 export async function getSchemaOverview(
   endpoint: string,
   graphUri: string
