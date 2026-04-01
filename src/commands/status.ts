@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { getGraphTripleCount } from '../lib/oxigraph.js';
+import { getInferenceGraphUri } from '../lib/reasoner.js';
 
 export function registerStatus(program: Command): void {
   program
@@ -27,8 +28,13 @@ export function registerStatus(program: Command): void {
       }
 
       try {
-        const count = await getGraphTripleCount(config.endpoint, graphUri);
-        console.log(`${pc.cyan('Triples:')}   ${count}`);
+        const inferenceGraphUri = getInferenceGraphUri(graphUri);
+        const assertedCount = await getGraphTripleCount(config.endpoint, graphUri);
+        const inferredCount = await getGraphTripleCount(config.endpoint, inferenceGraphUri);
+        const totalCount = assertedCount + inferredCount;
+        console.log(`${pc.cyan('Triples (asserted):')} ${assertedCount}`);
+        console.log(`${pc.cyan('Triples (inferred):')} ${inferredCount}`);
+        console.log(`${pc.cyan('Triples (total):')}    ${totalCount}`);
       } catch {
         console.log(
           `${pc.cyan('Triples:')}   Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`

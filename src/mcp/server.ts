@@ -11,6 +11,8 @@ import type { OpenTologyConfig } from '../lib/config.js';
 import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails, dropGraph, deleteTriples, diffGraph } from '../lib/oxigraph.js';
 import { validateTurtle } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
+import { materializeInferences, clearInferences, getInferenceGraphUri } from '../lib/reasoner.js';
+import type { InferenceResult } from '../lib/reasoner.js';
 
 function resolveConfig(params: { endpoint?: string; graphUri?: string; graph?: string }): { endpoint: string; graphUri: string } {
   if (params.endpoint && params.graphUri) {
@@ -95,7 +97,19 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   }
 
   await insertTurtle(endpoint, graphUri, content);
-  return { success: true, tripleCount: validation.tripleCount, replaced: !!replace };
+
+  const infer = args.infer as boolean | undefined;
+  let inference: InferenceResult | undefined;
+  if (infer !== false) {
+    inference = await materializeInferences(endpoint, graphUri);
+  }
+
+  return {
+    success: true,
+    tripleCount: validation.tripleCount,
+    replaced: !!replace,
+    ...(inference ? { inferredCount: inference.inferredCount, inferenceRules: inference.rules } : {}),
+  };
 }
 
 async function handleQuery(args: Record<string, unknown>): Promise<unknown> {
@@ -108,9 +122,14 @@ async function handleQuery(args: Record<string, unknown>): Promise<unknown> {
     graph: args.graph as string | undefined,
   });
 
+  const infer = args.infer as boolean | undefined;
+  const useInference = infer !== false;
+
   let query = sparql;
   if (!raw && !hasGraphScope(sparql)) {
-    const scoped = autoScopeQuery(sparql, graphUri);
+    const scoped = useInference
+      ? mcpAutoScopeQueryWithInference(sparql, graphUri)
+      : autoScopeQuery(sparql, graphUri);
     if (scoped) {
       query = scoped;
     }
@@ -134,8 +153,17 @@ async function handleStatus(args: Record<string, unknown>): Promise<unknown> {
     // config not available, keep "unknown"
   }
 
-  const tripleCount = await getGraphTripleCount(endpoint, graphUri);
-  return { projectId, endpoint, graphUri, tripleCount };
+  const inferenceGraphUri = getInferenceGraphUri(graphUri);
+  const assertedCount = await getGraphTripleCount(endpoint, graphUri);
+  const inferredCount = await getGraphTripleCount(endpoint, inferenceGraphUri);
+  return {
+    projectId,
+    endpoint,
+    graphUri,
+    tripleCount: assertedCount + inferredCount,
+    assertedCount,
+    inferredCount,
+  };
 }
 
 async function handlePull(args: Record<string, unknown>): Promise<unknown> {
@@ -301,6 +329,63 @@ async function handleGraphDrop(args: Record<string, unknown>): Promise<unknown> 
   return { success: true, name, graphUri };
 }
 
+async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
+  const clear = args.clear as boolean | undefined;
+  const { endpoint, graphUri } = resolveConfig({
+    endpoint: args.endpoint as string | undefined,
+    graphUri: args.graphUri as string | undefined,
+    graph: args.graph as string | undefined,
+  });
+
+  if (clear) {
+    await clearInferences(endpoint, graphUri);
+    return { success: true, cleared: true };
+  }
+
+  const result: InferenceResult = await materializeInferences(endpoint, graphUri);
+  return result;
+}
+
+/**
+ * Auto-scope a SPARQL query with UNION over asserted + inference graphs.
+ * Returns null if brace matching fails.
+ */
+function mcpAutoScopeQueryWithInference(sparql: string, graphUri: string): string | null {
+  const inferenceGraphUri = getInferenceGraphUri(graphUri);
+
+  const whereMatch = sparql.match(/\bWHERE\s*\{/i);
+  let braceStart: number;
+
+  if (whereMatch && whereMatch.index !== undefined) {
+    braceStart = whereMatch.index + whereMatch[0].length - 1;
+  } else {
+    const firstBrace = sparql.indexOf('{');
+    if (firstBrace === -1) return null;
+    braceStart = firstBrace;
+  }
+
+  let depth = 0;
+  let braceEnd = -1;
+  for (let i = braceStart; i < sparql.length; i++) {
+    if (sparql[i] === '{') depth++;
+    else if (sparql[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        braceEnd = i;
+        break;
+      }
+    }
+  }
+
+  if (braceEnd === -1) return null;
+
+  const before = sparql.slice(0, braceStart + 1);
+  const inner = sparql.slice(braceStart + 1, braceEnd);
+  const after = sparql.slice(braceEnd);
+
+  return `${before} { GRAPH <${graphUri}> {${inner}} } UNION { GRAPH <${inferenceGraphUri}> {${inner}} } ${after}`;
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new Server(
     { name: 'opentology', version: '0.1.0' },
@@ -406,6 +491,10 @@ export async function startMcpServer(): Promise<void> {
               type: 'boolean',
               description: 'Set to false to skip SHACL validation. When shapes exist and this is not explicitly false, SHACL validation runs automatically.',
             },
+            infer: {
+              type: 'boolean',
+              description: 'Set to false to skip RDFS inference after push. Defaults to true.',
+            },
             graph: {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
@@ -447,6 +536,10 @@ export async function startMcpServer(): Promise<void> {
             raw: {
               type: 'boolean',
               description: 'If true, skip automatic graph scoping and send the query as-is',
+            },
+            infer: {
+              type: 'boolean',
+              description: 'Set to false to exclude the inference graph from auto-scoped queries. Defaults to true.',
             },
           },
           required: ['sparql'],
@@ -645,6 +738,31 @@ export async function startMcpServer(): Promise<void> {
           required: ['name', 'confirm'],
         },
       },
+      {
+        name: 'opentology_infer',
+        description: 'Run RDFS inference on the project graph, materializing inferred triples into a separate inference graph. With clear: true, removes the inference graph instead.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            clear: {
+              type: 'boolean',
+              description: 'If true, clear the inference graph instead of materializing',
+            },
+            graph: {
+              type: 'string',
+              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+            },
+            endpoint: {
+              type: 'string',
+              description: 'SPARQL endpoint URL (uses config default if omitted)',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -691,6 +809,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_graph_drop':
           result = await handleGraphDrop(args as Record<string, unknown>);
+          break;
+        case 'opentology_infer':
+          result = await handleInfer(args as Record<string, unknown>);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);

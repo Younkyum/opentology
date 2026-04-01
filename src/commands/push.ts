@@ -5,6 +5,7 @@ import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { insertTurtle, dropGraph } from '../lib/oxigraph.js';
 import { validateTurtleFile } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
+import { materializeInferences } from '../lib/reasoner.js';
 
 export function registerPush(program: Command): void {
   program
@@ -12,8 +13,9 @@ export function registerPush(program: Command): void {
     .description('Push a Turtle file to the triplestore')
     .option('--replace', 'Replace entire graph contents (drop + push)')
     .option('--no-shacl', 'Skip SHACL validation')
+    .option('--no-infer', 'Skip RDFS inference after push')
     .option('--graph <name>', 'Target a specific named graph')
-    .action(async (file: string, opts: { replace?: boolean; shacl?: boolean; graph?: string }) => {
+    .action(async (file: string, opts: { replace?: boolean; shacl?: boolean; infer?: boolean; graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -57,6 +59,13 @@ export function registerPush(program: Command): void {
           console.log(pc.green(`Replaced graph with ${result.tripleCount} triples`));
         } else {
           console.log(pc.green(`Pushed ${result.tripleCount} triples to ${graphUri}`));
+        }
+
+        if (opts.infer !== false) {
+          const inference = await materializeInferences(config.endpoint, graphUri);
+          if (inference.inferredCount > 0) {
+            console.log(pc.green(`Inferred ${pc.cyan(String(inference.inferredCount))} additional triples`));
+          }
         }
       } catch (err) {
         const message = (err as Error).message;

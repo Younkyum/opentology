@@ -12,6 +12,7 @@ import { registerMcp } from './commands/mcp.js';
 import { registerShapes } from './commands/shapes.js';
 import { registerDiff } from './commands/diff.js';
 import { registerGraph } from './commands/graph.js';
+import { registerInfer } from './commands/infer.js';
 
 const program = new Command();
 program
@@ -31,5 +32,6 @@ registerMcp(program);
 registerShapes(program);
 registerDiff(program);
 registerGraph(program);
+registerInfer(program);
 
 program.parse(process.argv);
