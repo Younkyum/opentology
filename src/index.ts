@@ -13,6 +13,7 @@ import { registerShapes } from './commands/shapes.js';
 import { registerDiff } from './commands/diff.js';
 import { registerGraph } from './commands/graph.js';
 import { registerInfer } from './commands/infer.js';
+import { registerPrefix } from './commands/prefix.js';
 
 const program = new Command();
 program
@@ -33,5 +34,6 @@ registerShapes(program);
 registerDiff(program);
 registerGraph(program);
 registerInfer(program);
+registerPrefix(program);
 
 program.parse(process.argv);

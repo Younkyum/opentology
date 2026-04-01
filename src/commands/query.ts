@@ -3,6 +3,18 @@ import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
 import { hasGraphScope, autoScopeQuery } from '../lib/sparql-utils.js';
 
+function injectPrefixes(sparql: string, prefixes: Record<string, string>): string {
+  const lines = Object.entries(prefixes)
+    .filter(([prefix]) => {
+      // Skip if the query already declares this prefix
+      const re = new RegExp(`PREFIX\\s+${prefix}\\s*:`, 'i');
+      return !re.test(sparql);
+    })
+    .map(([prefix, uri]) => `PREFIX ${prefix}: <${uri}>`);
+  if (lines.length === 0) return sparql;
+  return lines.join('\n') + '\n' + sparql;
+}
+
 function formatTable(vars: string[], bindings: Array<Record<string, { type: string; value: string }>>): string {
   if (bindings.length === 0) {
     return '(no results)';
@@ -69,11 +81,16 @@ export function registerQuery(program: Command): void {
       // Resolve format: --json flag overrides --format
       const format = options.json ? 'json' : (options.format || 'table');
 
+      // Inject project-level PREFIX declarations from config
+      let effectiveSparql = sparql;
+      if (config.prefixes) {
+        effectiveSparql = injectPrefixes(effectiveSparql, config.prefixes);
+      }
+
       // Auto-scope the query to the project's Named Graph unless the user
       // has already specified graph scoping or passed --raw.
-      let effectiveSparql = sparql;
-      if (!options.raw && !hasGraphScope(sparql)) {
-        const scoped = autoScopeQuery(sparql, graphUri);
+      if (!options.raw && !hasGraphScope(effectiveSparql)) {
+        const scoped = autoScopeQuery(effectiveSparql, graphUri);
         if (scoped !== null) {
           effectiveSparql = scoped;
         } else {
@@ -104,7 +121,18 @@ export function registerQuery(program: Command): void {
           }
         }
       } catch (err) {
-        console.error(`Error: ${(err as Error).message}`);
+        const message = (err as Error).message;
+        console.error(`Error: ${message}`);
+        if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
+          console.error(
+            `Cannot connect to triplestore at ${config.endpoint ?? 'unknown'}. Is it running? Start with: docker compose up -d`
+          );
+        }
+        if (message.toLowerCase().includes('parse') && sparql.includes('\\!')) {
+          console.error(
+            `Hint: if your query contains !=, your shell may have escaped the '!' character. Try wrapping the query in $'...' or use FILTER(?x NOT IN (<uri>)) instead.`
+          );
+        }
         process.exit(1);
       }
     });

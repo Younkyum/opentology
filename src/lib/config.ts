@@ -8,6 +8,7 @@ export interface OpenTologyConfig {
   graphUri: string;
   graphs?: Record<string, string>;
   files?: Record<string, string[]>;
+  prefixes?: Record<string, string>;
 }
 
 export function resolveGraphUri(config: OpenTologyConfig, graphName?: string): string {

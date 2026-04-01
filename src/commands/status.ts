@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
-import { loadConfig, resolveGraphUri } from '../lib/config.js';
+import { loadConfig, resolveGraphUri, getTrackedFiles } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
 import { getInferenceGraphUri } from '../lib/sparql-utils.js';
 
@@ -28,6 +28,10 @@ export function registerStatus(program: Command): void {
       }
       if (opts.graph) {
         console.log(`${pc.cyan('Graph:')}     ${opts.graph}`);
+      }
+      if (config.mode === 'embedded') {
+        const trackedCount = getTrackedFiles(config, graphUri).length;
+        console.log(`${pc.cyan('Tracked files:')} ${trackedCount}`);
       }
 
       try {

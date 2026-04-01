@@ -39,7 +39,14 @@ async function handleInit(args: Record<string, unknown>): Promise<unknown> {
   }
 
   const graphUri = `https://opentology.dev/${projectId}`;
-  const config: OpenTologyConfig = { projectId, mode, graphUri, ...(endpoint ? { endpoint } : {}) };
+  const prefixes: Record<string, string> = {
+    rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+    rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
+    owl: 'http://www.w3.org/2002/07/owl#',
+    xsd: 'http://www.w3.org/2001/XMLSchema#',
+    schema: 'http://schema.org/',
+  };
+  const config: OpenTologyConfig = { projectId, mode, graphUri, prefixes, ...(endpoint ? { endpoint } : {}) };
   saveConfig(config);
 
   return { projectId, mode, endpoint, graphUri };
@@ -110,6 +117,17 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   };
 }
 
+function injectPrefixes(sparql: string, prefixes: Record<string, string>): string {
+  const lines = Object.entries(prefixes)
+    .filter(([prefix]) => {
+      const re = new RegExp(`PREFIX\\s+${prefix}\\s*:`, 'i');
+      return !re.test(sparql);
+    })
+    .map(([prefix, uri]) => `PREFIX ${prefix}: <${uri}>`);
+  if (lines.length === 0) return sparql;
+  return lines.join('\n') + '\n' + sparql;
+}
+
 async function handleQuery(args: Record<string, unknown>): Promise<unknown> {
   const sparql = args.sparql as string;
   const raw = args.raw as boolean | undefined;
@@ -120,6 +138,12 @@ async function handleQuery(args: Record<string, unknown>): Promise<unknown> {
   });
 
   let query = sparql;
+
+  // Inject project-level PREFIX declarations from config
+  if (config.prefixes) {
+    query = injectPrefixes(query, config.prefixes);
+  }
+
   if (!raw && !hasGraphScope(sparql)) {
     const scoped = autoScopeQuery(sparql, graphUri);
     if (scoped) {
