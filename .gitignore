@@ -2,3 +2,4 @@ node_modules
 dist
 .opentology.json
 .omc/
+context/
