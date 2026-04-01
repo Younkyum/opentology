@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { insertTurtle, dropGraph } from '../lib/oxigraph.js';
 import { validateTurtleFile } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
@@ -12,7 +12,8 @@ export function registerPush(program: Command): void {
     .description('Push a Turtle file to the triplestore')
     .option('--replace', 'Replace entire graph contents (drop + push)')
     .option('--no-shacl', 'Skip SHACL validation')
-    .action(async (file: string, opts: { replace?: boolean; shacl?: boolean }) => {
+    .option('--graph <name>', 'Target a specific named graph')
+    .action(async (file: string, opts: { replace?: boolean; shacl?: boolean; graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -20,6 +21,8 @@ export function registerPush(program: Command): void {
         console.error(`Error: ${(err as Error).message}`);
         process.exit(1);
       }
+
+      const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
 
       try {
         const result = await validateTurtleFile(file);
@@ -45,15 +48,15 @@ export function registerPush(program: Command): void {
         }
 
         if (opts.replace) {
-          await dropGraph(config.endpoint, config.graphUri);
+          await dropGraph(config.endpoint, graphUri);
         }
 
-        await insertTurtle(config.endpoint, config.graphUri, turtle);
+        await insertTurtle(config.endpoint, graphUri, turtle);
 
         if (opts.replace) {
           console.log(pc.green(`Replaced graph with ${result.tripleCount} triples`));
         } else {
-          console.log(pc.green(`Pushed ${result.tripleCount} triples to ${config.graphUri}`));
+          console.log(pc.green(`Pushed ${result.tripleCount} triples to ${graphUri}`));
         }
       } catch (err) {
         const message = (err as Error).message;

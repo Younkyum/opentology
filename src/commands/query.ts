@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { sparqlQuery, hasGraphScope, autoScopeQuery } from '../lib/oxigraph.js';
 
 function formatTable(vars: string[], bindings: Array<Record<string, { type: string; value: string }>>): string {
@@ -53,7 +53,8 @@ export function registerQuery(program: Command): void {
     .option('--format <type>', 'Output format: table, json, csv', 'table')
     .option('--json', 'Output raw JSON (alias for --format json)')
     .option('--raw', 'Skip automatic Named Graph scoping')
-    .action(async (sparql: string, options: { format?: string; json?: boolean; raw?: boolean }) => {
+    .option('--graph <name>', 'Target a specific named graph')
+    .action(async (sparql: string, options: { format?: string; json?: boolean; raw?: boolean; graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -62,6 +63,8 @@ export function registerQuery(program: Command): void {
         process.exit(1);
       }
 
+      const graphUri = options.graph ? resolveGraphUri(config, options.graph) : config.graphUri;
+
       // Resolve format: --json flag overrides --format
       const format = options.json ? 'json' : (options.format || 'table');
 
@@ -69,12 +72,12 @@ export function registerQuery(program: Command): void {
       // has already specified graph scoping or passed --raw.
       let effectiveSparql = sparql;
       if (!options.raw && !hasGraphScope(sparql)) {
-        const scoped = autoScopeQuery(sparql, config.graphUri);
+        const scoped = autoScopeQuery(sparql, graphUri);
         if (scoped !== null) {
           effectiveSparql = scoped;
         } else {
           // Transformation failed — run as-is and warn.
-          console.warn(`Warning: could not auto-scope query. Add GRAPH <${config.graphUri}> manually or use --raw.`);
+          console.warn(`Warning: could not auto-scope query. Add GRAPH <${graphUri}> manually or use --raw.`);
         }
       }
 
@@ -93,7 +96,7 @@ export function registerQuery(program: Command): void {
             console.log(output);
 
             if (results.results.bindings.length === 0) {
-              console.log(`\nHint: use GRAPH <${config.graphUri}> in your WHERE clause`);
+              console.log(`\nHint: use GRAPH <${graphUri}> in your WHERE clause`);
             }
             break;
           }

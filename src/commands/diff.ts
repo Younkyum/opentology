@@ -1,14 +1,15 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { diffGraph } from '../lib/oxigraph.js';
 
 export function registerDiff(program: Command): void {
   program
     .command('diff <file>')
     .description('Show differences between a local Turtle file and the remote graph')
-    .action(async (file: string) => {
+    .option('--graph <name>', 'Target a specific named graph')
+    .action(async (file: string, opts: { graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -17,9 +18,11 @@ export function registerDiff(program: Command): void {
         process.exit(1);
       }
 
+      const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
+
       try {
         const turtle = readFileSync(file, 'utf-8');
-        const result = await diffGraph(config.endpoint, config.graphUri, turtle);
+        const result = await diffGraph(config.endpoint, graphUri, turtle);
 
         for (const triple of result.added) {
           console.log(pc.green(`+ ${triple}`));

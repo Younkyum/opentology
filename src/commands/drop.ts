@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { dropGraph } from '../lib/oxigraph.js';
 
 export function registerDrop(program: Command): void {
@@ -8,7 +8,8 @@ export function registerDrop(program: Command): void {
     .command('drop')
     .description('Drop (delete) the entire project graph')
     .option('--force', 'Skip confirmation and drop immediately')
-    .action(async (opts: { force?: boolean }) => {
+    .option('--graph <name>', 'Target a specific named graph')
+    .action(async (opts: { force?: boolean; graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -17,16 +18,18 @@ export function registerDrop(program: Command): void {
         process.exit(1);
       }
 
+      const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
+
       if (!opts.force) {
         console.error(
-          pc.red(`This will delete all triples in ${config.graphUri}. Use --force to confirm.`)
+          pc.red(`This will delete all triples in ${graphUri}. Use --force to confirm.`)
         );
         process.exit(1);
       }
 
       try {
-        await dropGraph(config.endpoint, config.graphUri);
-        console.log(pc.green(`Dropped graph ${config.graphUri}`));
+        await dropGraph(config.endpoint, graphUri);
+        console.log(pc.green(`Dropped graph ${graphUri}`));
       } catch (err) {
         console.error(`Error: ${(err as Error).message}`);
         process.exit(1);

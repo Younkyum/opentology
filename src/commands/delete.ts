@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, resolveGraphUri } from '../lib/config.js';
 import { deleteTriples } from '../lib/oxigraph.js';
 
 export function registerDelete(program: Command): void {
@@ -9,7 +9,8 @@ export function registerDelete(program: Command): void {
     .command('delete [file]')
     .description('Delete specific triples from the project graph')
     .option('--where <pattern>', 'SPARQL WHERE pattern for pattern-based deletion')
-    .action(async (file: string | undefined, opts: { where?: string }) => {
+    .option('--graph <name>', 'Target a specific named graph')
+    .action(async (file: string | undefined, opts: { where?: string; graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -23,13 +24,15 @@ export function registerDelete(program: Command): void {
         process.exit(1);
       }
 
+      const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
+
       try {
         if (file) {
           const content = readFileSync(file, 'utf-8');
-          await deleteTriples(config.endpoint, config.graphUri, { turtle: content });
+          await deleteTriples(config.endpoint, graphUri, { turtle: content });
           console.log(pc.green(`Deleted triples from ${file}`));
         } else if (opts.where) {
-          await deleteTriples(config.endpoint, config.graphUri, { where: opts.where });
+          await deleteTriples(config.endpoint, graphUri, { where: opts.where });
           console.log(pc.green('Deleted triples matching pattern'));
         }
       } catch (err) {

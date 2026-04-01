@@ -5,6 +5,18 @@ export interface OpenTologyConfig {
   projectId: string;
   endpoint: string;
   graphUri: string;
+  graphs?: Record<string, string>;
+}
+
+export function resolveGraphUri(config: OpenTologyConfig, graphName?: string): string {
+  if (!graphName) {
+    return config.graphUri;
+  }
+  const uri = config.graphs?.[graphName];
+  if (!uri) {
+    throw new Error(`Unknown graph: ${graphName}. Use 'opentology graph create ${graphName}' first.`);
+  }
+  return uri;
 }
 
 const CONFIG_FILENAME = '.opentology.json';
