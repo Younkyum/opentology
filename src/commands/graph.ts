@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { loadConfig, saveConfig, resolveGraphUri } from '../lib/config.js';
-import { sparqlQuery, getGraphTripleCount, dropGraph } from '../lib/oxigraph.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 
 export function registerGraph(program: Command): void {
   const graph = program
@@ -21,9 +21,10 @@ export function registerGraph(program: Command): void {
       }
 
       try {
-        // Query Oxigraph for all graphs that start with the project's base URI
-        const results = await sparqlQuery(
-          config.endpoint,
+        const adapter = await createReadyAdapter(config);
+
+        // Query for all graphs that start with the project's base URI
+        const results = await adapter.sparqlQuery(
           `SELECT DISTINCT ?g (COUNT(*) AS ?count) WHERE { GRAPH ?g { ?s ?p ?o } } GROUP BY ?g`
         );
 
@@ -70,7 +71,7 @@ export function registerGraph(program: Command): void {
         const message = (err as Error).message;
         if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
           console.error(
-            `Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`
+            `Cannot connect to Oxigraph at ${config.endpoint ?? 'unknown'}. Is it running? Start with: docker compose up -d`
           );
         } else {
           console.error(`Error: ${message}`);
@@ -135,7 +136,8 @@ export function registerGraph(program: Command): void {
       }
 
       try {
-        await dropGraph(config.endpoint, graphUri);
+        const adapter = await createReadyAdapter(config);
+        await adapter.dropGraph(graphUri);
 
         const graphs = config.graphs ?? {};
         delete graphs[name];

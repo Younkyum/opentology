@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
-import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { dropGraph } from '../lib/oxigraph.js';
+import { loadConfig, resolveGraphUri, saveConfig } from '../lib/config.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 
 export function registerDrop(program: Command): void {
   program
@@ -28,7 +28,16 @@ export function registerDrop(program: Command): void {
       }
 
       try {
-        await dropGraph(config.endpoint, graphUri);
+        const adapter = await createReadyAdapter(config);
+        await adapter.dropGraph(graphUri);
+
+        // In embedded mode, clear tracked files for this graph
+        if (config.mode === 'embedded') {
+          if (!config.files) config.files = {};
+          config.files[graphUri] = [];
+          saveConfig(config);
+        }
+
         console.log(pc.green(`Dropped graph ${graphUri}`));
       } catch (err) {
         console.error(`Error: ${(err as Error).message}`);

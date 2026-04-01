@@ -8,44 +8,41 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, saveConfig, configExists, resolveGraphUri } from '../lib/config.js';
 import type { OpenTologyConfig } from '../lib/config.js';
-import { sparqlQuery, insertTurtle, getGraphTripleCount, exportGraph, hasGraphScope, autoScopeQuery, getSchemaOverview, getClassDetails, dropGraph, deleteTriples, diffGraph } from '../lib/oxigraph.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
+import type { StoreAdapter } from '../lib/store-adapter.js';
+import { hasGraphScope, autoScopeQuery, getInferenceGraphUri } from '../lib/sparql-utils.js';
 import { validateTurtle } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
-import { materializeInferences, clearInferences, getInferenceGraphUri } from '../lib/reasoner.js';
+import { materializeInferences, clearInferences } from '../lib/reasoner.js';
 import type { InferenceResult } from '../lib/reasoner.js';
 
-function resolveConfig(params: { endpoint?: string; graphUri?: string; graph?: string }): { endpoint: string; graphUri: string } {
-  if (params.endpoint && params.graphUri) {
-    return { endpoint: params.endpoint, graphUri: params.graphUri };
-  }
+function resolveConfig(params: { endpoint?: string; graphUri?: string; graph?: string }): { config: OpenTologyConfig; graphUri: string } {
   try {
     const config = loadConfig();
     let graphUri = params.graphUri || config.graphUri;
     if (params.graph) {
       graphUri = resolveGraphUri(config, params.graph);
     }
-    return {
-      endpoint: params.endpoint || config.endpoint,
-      graphUri,
-    };
+    return { config, graphUri };
   } catch {
-    throw new Error('No config found. Either pass endpoint and graphUri parameters, or run opentology init first.');
+    throw new Error('No config found. Run opentology init first.');
   }
 }
 
 async function handleInit(args: Record<string, unknown>): Promise<unknown> {
   const projectId = args.projectId as string;
-  const endpoint = (args.endpoint as string) || 'http://localhost:7878';
+  const mode = (args.mode as 'http' | 'embedded') || 'http';
+  const endpoint = mode === 'http' ? ((args.endpoint as string) || 'http://localhost:7878') : undefined;
 
   if (configExists()) {
     throw new Error('Project already initialized. .opentology.json exists in the current directory.');
   }
 
   const graphUri = `https://opentology.dev/${projectId}`;
-  const config: OpenTologyConfig = { projectId, endpoint, graphUri };
+  const config: OpenTologyConfig = { projectId, mode, graphUri, ...(endpoint ? { endpoint } : {}) };
   saveConfig(config);
 
-  return { projectId, endpoint, graphUri };
+  return { projectId, mode, endpoint, graphUri };
 }
 
 async function handleValidate(args: Record<string, unknown>): Promise<unknown> {
@@ -86,22 +83,23 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
     }
   }
 
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
+  const adapter = await createReadyAdapter(config);
+
   if (replace) {
-    await dropGraph(endpoint, graphUri);
+    await adapter.dropGraph(graphUri);
   }
 
-  await insertTurtle(endpoint, graphUri, content);
+  await adapter.insertTurtle(graphUri, content);
 
   const infer = args.infer as boolean | undefined;
   let inference: InferenceResult | undefined;
   if (infer !== false) {
-    inference = await materializeInferences(endpoint, graphUri);
+    inference = await materializeInferences(adapter, graphUri);
   }
 
   return {
@@ -116,49 +114,37 @@ async function handleQuery(args: Record<string, unknown>): Promise<unknown> {
   const sparql = args.sparql as string;
   const raw = args.raw as boolean | undefined;
 
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
-  const infer = args.infer as boolean | undefined;
-  const useInference = infer !== false;
-
   let query = sparql;
   if (!raw && !hasGraphScope(sparql)) {
-    const scoped = useInference
-      ? mcpAutoScopeQueryWithInference(sparql, graphUri)
-      : autoScopeQuery(sparql, graphUri);
+    const scoped = autoScopeQuery(sparql, graphUri);
     if (scoped) {
       query = scoped;
     }
   }
 
-  return await sparqlQuery(endpoint, query);
+  const adapter = await createReadyAdapter(config);
+  return await adapter.sparqlQuery(query);
 }
 
 async function handleStatus(args: Record<string, unknown>): Promise<unknown> {
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
-  let projectId = 'unknown';
-  try {
-    const config = loadConfig();
-    projectId = config.projectId;
-  } catch {
-    // config not available, keep "unknown"
-  }
-
+  const adapter = await createReadyAdapter(config);
   const inferenceGraphUri = getInferenceGraphUri(graphUri);
-  const assertedCount = await getGraphTripleCount(endpoint, graphUri);
-  const inferredCount = await getGraphTripleCount(endpoint, inferenceGraphUri);
+  const assertedCount = await adapter.getGraphTripleCount(graphUri);
+  const inferredCount = await adapter.getGraphTripleCount(inferenceGraphUri);
   return {
-    projectId,
-    endpoint,
+    projectId: config.projectId,
+    mode: config.mode,
+    endpoint: config.endpoint,
     graphUri,
     tripleCount: assertedCount + inferredCount,
     assertedCount,
@@ -167,31 +153,29 @@ async function handleStatus(args: Record<string, unknown>): Promise<unknown> {
 }
 
 async function handlePull(args: Record<string, unknown>): Promise<unknown> {
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
-  const turtle = await exportGraph(endpoint, graphUri);
+  const adapter = await createReadyAdapter(config);
+  const turtle = await adapter.exportGraph(graphUri);
   return turtle;
 }
 
 async function handleSchema(args: Record<string, unknown>): Promise<unknown> {
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
+  const adapter = await createReadyAdapter(config);
   const classUri = args.class as string | undefined;
 
   if (classUri) {
-    // Drill down into specific class
-    return await getClassDetails(endpoint, graphUri, classUri);
+    return await adapter.getClassDetails(graphUri, classUri);
   } else {
-    // Return full overview (same as resource but callable on-demand)
-    return await getSchemaOverview(endpoint, graphUri);
+    return await adapter.getSchemaOverview(graphUri);
   }
 }
 
@@ -201,13 +185,13 @@ async function handleDrop(args: Record<string, unknown>): Promise<unknown> {
     throw new Error('Drop requires confirm: true to prevent accidental deletion.');
   }
 
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
-  await dropGraph(endpoint, graphUri);
+  const adapter = await createReadyAdapter(config);
+  await adapter.dropGraph(graphUri);
   return { success: true, graphUri };
 }
 
@@ -219,13 +203,13 @@ async function handleDelete(args: Record<string, unknown>): Promise<unknown> {
     throw new Error('Provide either content (Turtle) or where (SPARQL pattern)');
   }
 
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
-  await deleteTriples(endpoint, graphUri, { turtle: content, where });
+  const adapter = await createReadyAdapter(config);
+  await adapter.deleteTriples(graphUri, { turtle: content, where });
   return { success: true };
 }
 
@@ -235,21 +219,20 @@ async function handleDiff(args: Record<string, unknown>): Promise<unknown> {
     throw new Error('content (Turtle) is required');
   }
 
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
-  return await diffGraph(endpoint, graphUri, content);
+  const adapter = await createReadyAdapter(config);
+  return await adapter.diffGraph(graphUri, content);
 }
 
-async function handleGraphList(args: Record<string, unknown>): Promise<unknown> {
+async function handleGraphList(_args: Record<string, unknown>): Promise<unknown> {
   const config = loadConfig();
-  const endpoint = (args.endpoint as string | undefined) || config.endpoint;
+  const adapter = await createReadyAdapter(config);
 
-  const results = await sparqlQuery(
-    endpoint,
+  const results = await adapter.sparqlQuery(
     `SELECT DISTINCT ?g (COUNT(*) AS ?count) WHERE { GRAPH ?g { ?s ?p ?o } } GROUP BY ?g`
   );
 
@@ -317,9 +300,9 @@ async function handleGraphDrop(args: Record<string, unknown>): Promise<unknown> 
 
   const config = loadConfig();
   const graphUri = resolveGraphUri(config, name);
-  const endpoint = config.endpoint;
+  const adapter = await createReadyAdapter(config);
 
-  await dropGraph(endpoint, graphUri);
+  await adapter.dropGraph(graphUri);
 
   const graphs = config.graphs ?? {};
   delete graphs[name];
@@ -331,59 +314,20 @@ async function handleGraphDrop(args: Record<string, unknown>): Promise<unknown> 
 
 async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
   const clear = args.clear as boolean | undefined;
-  const { endpoint, graphUri } = resolveConfig({
-    endpoint: args.endpoint as string | undefined,
+  const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
+  const adapter = await createReadyAdapter(config);
+
   if (clear) {
-    await clearInferences(endpoint, graphUri);
+    await clearInferences(adapter, graphUri);
     return { success: true, cleared: true };
   }
 
-  const result: InferenceResult = await materializeInferences(endpoint, graphUri);
+  const result: InferenceResult = await materializeInferences(adapter, graphUri);
   return result;
-}
-
-/**
- * Auto-scope a SPARQL query with UNION over asserted + inference graphs.
- * Returns null if brace matching fails.
- */
-function mcpAutoScopeQueryWithInference(sparql: string, graphUri: string): string | null {
-  const inferenceGraphUri = getInferenceGraphUri(graphUri);
-
-  const whereMatch = sparql.match(/\bWHERE\s*\{/i);
-  let braceStart: number;
-
-  if (whereMatch && whereMatch.index !== undefined) {
-    braceStart = whereMatch.index + whereMatch[0].length - 1;
-  } else {
-    const firstBrace = sparql.indexOf('{');
-    if (firstBrace === -1) return null;
-    braceStart = firstBrace;
-  }
-
-  let depth = 0;
-  let braceEnd = -1;
-  for (let i = braceStart; i < sparql.length; i++) {
-    if (sparql[i] === '{') depth++;
-    else if (sparql[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        braceEnd = i;
-        break;
-      }
-    }
-  }
-
-  if (braceEnd === -1) return null;
-
-  const before = sparql.slice(0, braceStart + 1);
-  const inner = sparql.slice(braceStart + 1, braceEnd);
-  const after = sparql.slice(braceEnd);
-
-  return `${before} { GRAPH <${graphUri}> {${inner}} } UNION { GRAPH <${inferenceGraphUri}> {${inner}} } ${after}`;
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -408,8 +352,9 @@ export async function startMcpServer(): Promise<void> {
 
     if (uri === 'opentology://schema') {
       try {
-        const { endpoint, graphUri } = resolveConfig({});
-        const overview = await getSchemaOverview(endpoint, graphUri);
+        const { config, graphUri } = resolveConfig({});
+        const adapter = await createReadyAdapter(config);
+        const overview = await adapter.getSchemaOverview(graphUri);
         return {
           contents: [
             {
@@ -447,9 +392,14 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Unique identifier for the project (used in the graph URI)',
             },
+            mode: {
+              type: 'string',
+              enum: ['http', 'embedded'],
+              description: 'Store mode: http (needs SPARQL server) or embedded (no server needed). Default: http',
+            },
             endpoint: {
               type: 'string',
-              description: 'SPARQL endpoint URL (default: http://localhost:7878)',
+              description: 'SPARQL endpoint URL (default: http://localhost:7878, only used in http mode)',
             },
           },
           required: ['projectId'],
@@ -499,10 +449,6 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
             },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
-            },
             graphUri: {
               type: 'string',
               description: 'Named graph URI (uses config default if omitted)',
@@ -525,10 +471,6 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
             },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
-            },
             graphUri: {
               type: 'string',
               description: 'Named graph URI (uses config default if omitted)',
@@ -536,10 +478,6 @@ export async function startMcpServer(): Promise<void> {
             raw: {
               type: 'boolean',
               description: 'If true, skip automatic graph scoping and send the query as-is',
-            },
-            infer: {
-              type: 'boolean',
-              description: 'Set to false to exclude the inference graph from auto-scoped queries. Defaults to true.',
             },
           },
           required: ['sparql'],
@@ -554,10 +492,6 @@ export async function startMcpServer(): Promise<void> {
             graph: {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
-            },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
             },
             graphUri: {
               type: 'string',
@@ -575,10 +509,6 @@ export async function startMcpServer(): Promise<void> {
             graph: {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
-            },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
             },
             graphUri: {
               type: 'string',
@@ -601,10 +531,6 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
             },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
-            },
             graphUri: {
               type: 'string',
               description: 'Named graph URI (uses config default if omitted)',
@@ -625,10 +551,6 @@ export async function startMcpServer(): Promise<void> {
             graph: {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
-            },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
             },
             graphUri: {
               type: 'string',
@@ -656,10 +578,6 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
             },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
-            },
             graphUri: {
               type: 'string',
               description: 'Named graph URI (uses config default if omitted)',
@@ -681,10 +599,6 @@ export async function startMcpServer(): Promise<void> {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
             },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
-            },
             graphUri: {
               type: 'string',
               description: 'Named graph URI (uses config default if omitted)',
@@ -698,12 +612,7 @@ export async function startMcpServer(): Promise<void> {
         description: 'List all named graphs for the project. Shows graph name, URI, and triple count.',
         inputSchema: {
           type: 'object' as const,
-          properties: {
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
-            },
-          },
+          properties: {},
         },
       },
       {
@@ -740,7 +649,7 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'opentology_infer',
-        description: 'Run RDFS inference on the project graph, materializing inferred triples into a separate inference graph. With clear: true, removes the inference graph instead.',
+        description: 'Run RDFS inference on the project graph, materializing inferred triples into the main graph (so queries work naturally). A bookkeeping copy is kept in the inference graph for status reporting and clear support. With clear: true, removes inferred triples from both graphs.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -751,10 +660,6 @@ export async function startMcpServer(): Promise<void> {
             graph: {
               type: 'string',
               description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
-            },
-            endpoint: {
-              type: 'string',
-              description: 'SPARQL endpoint URL (uses config default if omitted)',
             },
             graphUri: {
               type: 'string',

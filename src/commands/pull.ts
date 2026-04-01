@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { writeFileSync } from 'node:fs';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { exportGraph, getGraphTripleCount } from '../lib/oxigraph.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 
 export function registerPull(program: Command): void {
   program
@@ -20,8 +20,9 @@ export function registerPull(program: Command): void {
       const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
 
       try {
-        const turtle = await exportGraph(config.endpoint, graphUri);
-        const count = await getGraphTripleCount(config.endpoint, graphUri);
+        const adapter = await createReadyAdapter(config);
+        const turtle = await adapter.exportGraph(graphUri);
+        const count = await adapter.getGraphTripleCount(graphUri);
 
         if (output) {
           writeFileSync(output, turtle, 'utf-8');

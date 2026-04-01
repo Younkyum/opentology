@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { getGraphTripleCount } from '../lib/oxigraph.js';
-import { getInferenceGraphUri } from '../lib/reasoner.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
+import { getInferenceGraphUri } from '../lib/sparql-utils.js';
 
 export function registerStatus(program: Command): void {
   program
@@ -22,22 +22,26 @@ export function registerStatus(program: Command): void {
 
       console.log(`${pc.cyan('Project:')}   ${config.projectId}`);
       console.log(`${pc.cyan('Graph URI:')} ${graphUri}`);
-      console.log(`${pc.cyan('Endpoint:')}  ${config.endpoint}`);
+      console.log(`${pc.cyan('Mode:')}      ${config.mode}`);
+      if (config.endpoint) {
+        console.log(`${pc.cyan('Endpoint:')}  ${config.endpoint}`);
+      }
       if (opts.graph) {
         console.log(`${pc.cyan('Graph:')}     ${opts.graph}`);
       }
 
       try {
+        const adapter = await createReadyAdapter(config);
         const inferenceGraphUri = getInferenceGraphUri(graphUri);
-        const assertedCount = await getGraphTripleCount(config.endpoint, graphUri);
-        const inferredCount = await getGraphTripleCount(config.endpoint, inferenceGraphUri);
+        const assertedCount = await adapter.getGraphTripleCount(graphUri);
+        const inferredCount = await adapter.getGraphTripleCount(inferenceGraphUri);
         const totalCount = assertedCount + inferredCount;
         console.log(`${pc.cyan('Triples (asserted):')} ${assertedCount}`);
         console.log(`${pc.cyan('Triples (inferred):')} ${inferredCount}`);
         console.log(`${pc.cyan('Triples (total):')}    ${totalCount}`);
       } catch {
         console.log(
-          `${pc.cyan('Triples:')}   Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`
+          `${pc.cyan('Triples:')}   Cannot connect to triplestore. Is it running?`
         );
       }
     });

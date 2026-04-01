@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { deleteTriples } from '../lib/oxigraph.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 
 export function registerDelete(program: Command): void {
   program
@@ -24,15 +24,21 @@ export function registerDelete(program: Command): void {
         process.exit(1);
       }
 
+      if (config.mode === 'embedded') {
+        console.error('Delete is not supported in embedded mode — edit your .ttl files directly.');
+        process.exit(1);
+      }
+
       const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
 
       try {
+        const adapter = await createReadyAdapter(config);
         if (file) {
           const content = readFileSync(file, 'utf-8');
-          await deleteTriples(config.endpoint, graphUri, { turtle: content });
+          await adapter.deleteTriples(graphUri, { turtle: content });
           console.log(pc.green(`Deleted triples from ${file}`));
         } else if (opts.where) {
-          await deleteTriples(config.endpoint, graphUri, { where: opts.where });
+          await adapter.deleteTriples(graphUri, { where: opts.where });
           console.log(pc.green('Deleted triples matching pattern'));
         }
       } catch (err) {

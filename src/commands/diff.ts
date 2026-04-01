@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { diffGraph } from '../lib/oxigraph.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 
 export function registerDiff(program: Command): void {
   program
@@ -21,8 +21,9 @@ export function registerDiff(program: Command): void {
       const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
 
       try {
+        const adapter = await createReadyAdapter(config);
         const turtle = readFileSync(file, 'utf-8');
-        const result = await diffGraph(config.endpoint, graphUri, turtle);
+        const result = await adapter.diffGraph(graphUri, turtle);
 
         for (const triple of result.added) {
           console.log(pc.green(`+ ${triple}`));
@@ -36,7 +37,7 @@ export function registerDiff(program: Command): void {
         const message = (err as Error).message;
         if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
           console.error(
-            `Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`
+            `Cannot connect to Oxigraph at ${config.endpoint ?? 'unknown'}. Is it running? Start with: docker compose up -d`
           );
         } else {
           console.error(`Error: ${message}`);

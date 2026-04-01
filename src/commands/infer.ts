@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 import { materializeInferences, clearInferences } from '../lib/reasoner.js';
 
 export function registerInfer(program: Command): void {
@@ -21,13 +22,14 @@ export function registerInfer(program: Command): void {
       const graphUri = opts.graph ? resolveGraphUri(config, opts.graph) : config.graphUri;
 
       try {
+        const adapter = await createReadyAdapter(config);
         if (opts.clear) {
-          await clearInferences(config.endpoint, graphUri);
+          await clearInferences(adapter, graphUri);
           console.log(pc.green('Cleared inference graph'));
           return;
         }
 
-        const result = await materializeInferences(config.endpoint, graphUri);
+        const result = await materializeInferences(adapter, graphUri);
         console.log(pc.green(`Inferred ${pc.cyan(String(result.inferredCount))} triples`));
 
         const activeRules = Object.entries(result.rules).filter(([, n]) => n > 0);
@@ -39,7 +41,7 @@ export function registerInfer(program: Command): void {
         const message = (err as Error).message;
         if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
           console.error(
-            `Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`
+            `Cannot connect to Oxigraph at ${config.endpoint ?? 'unknown'}. Is it running? Start with: docker compose up -d`
           );
         } else {
           console.error(`Error: ${message}`);

@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
-import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { insertTurtle, dropGraph } from '../lib/oxigraph.js';
+import { loadConfig, resolveGraphUri, saveConfig, addTrackedFile } from '../lib/config.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
 import { validateTurtleFile } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 import { materializeInferences } from '../lib/reasoner.js';
@@ -49,11 +49,19 @@ export function registerPush(program: Command): void {
           console.log('SHACL: conforms');
         }
 
+        const adapter = await createReadyAdapter(config);
+
         if (opts.replace) {
-          await dropGraph(config.endpoint, graphUri);
+          await adapter.dropGraph(graphUri);
         }
 
-        await insertTurtle(config.endpoint, graphUri, turtle);
+        await adapter.insertTurtle(graphUri, turtle);
+
+        // In embedded mode, track the file
+        if (config.mode === 'embedded') {
+          addTrackedFile(config, graphUri, file);
+          saveConfig(config);
+        }
 
         if (opts.replace) {
           console.log(pc.green(`Replaced graph with ${result.tripleCount} triples`));
@@ -62,7 +70,7 @@ export function registerPush(program: Command): void {
         }
 
         if (opts.infer !== false) {
-          const inference = await materializeInferences(config.endpoint, graphUri);
+          const inference = await materializeInferences(adapter, graphUri);
           if (inference.inferredCount > 0) {
             console.log(pc.green(`Inferred ${pc.cyan(String(inference.inferredCount))} additional triples`));
           }
@@ -71,7 +79,7 @@ export function registerPush(program: Command): void {
         const message = (err as Error).message;
         if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {
           console.error(
-            `Cannot connect to Oxigraph at ${config.endpoint}. Is it running? Start with: docker compose up -d`
+            `Cannot connect to Oxigraph at ${config.endpoint ?? 'unknown'}. Is it running? Start with: docker compose up -d`
           );
         } else {
           console.error(`Error: ${message}`);

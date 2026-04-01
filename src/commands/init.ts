@@ -14,7 +14,8 @@ export function registerInit(program: Command): void {
   program
     .command('init [projectId]')
     .description('Initialize a new OpenTology project')
-    .action((projectId?: string) => {
+    .option('--embedded', 'Use embedded mode (no server needed)')
+    .action((projectId: string | undefined, opts: { embedded?: boolean }) => {
       if (configExists()) {
         console.error('Error: .opentology.json already exists in this directory.');
         console.error('Remove it first if you want to re-initialize.');
@@ -27,15 +28,26 @@ export function registerInit(program: Command): void {
         process.exit(1);
       }
 
-      const endpoint = 'http://localhost:7878';
       const graphUri = `https://opentology.dev/${id}`;
 
-      saveConfig({ projectId: id, endpoint, graphUri });
+      if (opts.embedded) {
+        saveConfig({ projectId: id, mode: 'embedded', graphUri });
 
-      console.log(pc.green(`Initialized OpenTology project.`));
-      console.log(`  Project ID: ${id}`);
-      console.log(`  Endpoint:   ${endpoint}`);
-      console.log(`  Graph URI:  ${graphUri}`);
-      console.log(`\nConfig saved to .opentology.json`);
+        console.log(pc.green(`Initialized OpenTology project.`));
+        console.log(`  Project ID: ${id}`);
+        console.log(`  Mode:       embedded (no server needed)`);
+        console.log(`  Graph URI:  ${graphUri}`);
+        console.log(`\nConfig saved to .opentology.json`);
+      } else {
+        const endpoint = 'http://localhost:7878';
+        saveConfig({ projectId: id, mode: 'http', endpoint, graphUri });
+
+        console.log(pc.green(`Initialized OpenTology project.`));
+        console.log(`  Project ID: ${id}`);
+        console.log(`  Mode:       http`);
+        console.log(`  Endpoint:   ${endpoint}`);
+        console.log(`  Graph URI:  ${graphUri}`);
+        console.log(`\nConfig saved to .opentology.json`);
+      }
     });
 }

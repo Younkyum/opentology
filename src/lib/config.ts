@@ -1,11 +1,13 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import path, { join } from 'node:path';
 
 export interface OpenTologyConfig {
   projectId: string;
-  endpoint: string;
+  mode: 'http' | 'embedded';
+  endpoint?: string;
   graphUri: string;
   graphs?: Record<string, string>;
+  files?: Record<string, string[]>;
 }
 
 export function resolveGraphUri(config: OpenTologyConfig, graphName?: string): string {
@@ -26,33 +28,62 @@ function configPath(): string {
 }
 
 export function loadConfig(): OpenTologyConfig {
-  const path = configPath();
-  if (!existsSync(path)) {
+  const configFilePath = configPath();
+  if (!existsSync(configFilePath)) {
     throw new Error(
-      `Config file not found at ${path}. Run 'opentology init' first.`
+      `Config file not found at ${configFilePath}. Run 'opentology init' first.`
     );
   }
   try {
-    const raw = readFileSync(path, 'utf-8');
-    return JSON.parse(raw) as OpenTologyConfig;
+    const raw = readFileSync(configFilePath, 'utf-8');
+    const config = JSON.parse(raw) as OpenTologyConfig;
+    if (!config.mode) {
+      config.mode = 'http';
+    }
+    if (config.mode === 'http' && !config.endpoint) {
+      config.endpoint = 'http://localhost:7878';
+    }
+    return config;
   } catch (err) {
     throw new Error(
-      `Failed to read config file at ${path}: ${(err as Error).message}`
+      `Failed to read config file at ${configFilePath}: ${(err as Error).message}`
     );
   }
 }
 
 export function saveConfig(config: OpenTologyConfig): void {
-  const path = configPath();
+  const configFilePath = configPath();
   try {
-    writeFileSync(path, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    writeFileSync(configFilePath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   } catch (err) {
     throw new Error(
-      `Failed to write config file at ${path}: ${(err as Error).message}`
+      `Failed to write config file at ${configFilePath}: ${(err as Error).message}`
     );
   }
 }
 
 export function configExists(): boolean {
   return existsSync(configPath());
+}
+
+export function resolveEndpoint(config: OpenTologyConfig): string {
+  if (config.endpoint) return config.endpoint;
+  if (config.mode === 'embedded') {
+    throw new Error("No endpoint configured: project is in 'embedded' mode.");
+  }
+  return 'http://localhost:7878';
+}
+
+export function getTrackedFiles(config: OpenTologyConfig, graphUri: string): string[] {
+  return config.files?.[graphUri] ?? [];
+}
+
+export function addTrackedFile(config: OpenTologyConfig, graphUri: string, filePath: string): void {
+  if (!config.files) config.files = {};
+  if (!config.files[graphUri]) config.files[graphUri] = [];
+  // Store relative path
+  const relative = path.relative(process.cwd(), path.resolve(filePath));
+  if (!config.files[graphUri].includes(relative)) {
+    config.files[graphUri].push(relative);
+  }
 }

@@ -44,9 +44,9 @@ describe('config', () => {
       const raw = readFileSync(filePath, 'utf-8');
       expect(JSON.parse(raw)).toEqual(config);
 
-      // Verify loadConfig returns same data
+      // Verify loadConfig returns same data plus the default mode field
       const loaded = loadConfig();
-      expect(loaded).toEqual(config);
+      expect(loaded).toEqual({ ...config, mode: 'http' });
     });
   });
 

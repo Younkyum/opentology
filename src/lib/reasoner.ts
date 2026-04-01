@@ -1,5 +1,6 @@
 import { Parser, Writer, DataFactory } from 'n3';
-import { sparqlUpdate, insertTurtle, exportGraph } from './oxigraph.js';
+import type { StoreAdapter } from './store-adapter.js';
+import { getInferenceGraphUri } from './sparql-utils.js';
 
 const { namedNode } = DataFactory;
 
@@ -338,39 +339,48 @@ function parseTurtleToTriples(turtle: string): Promise<Triple[]> {
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-export function getInferenceGraphUri(graphUri: string): string {
-  return `${graphUri}/inferred`;
-}
-
 export async function clearInferences(
-  endpoint: string,
+  adapter: StoreAdapter,
   graphUri: string,
 ): Promise<void> {
   const inferenceGraph = getInferenceGraphUri(graphUri);
-  await sparqlUpdate(endpoint, `DROP SILENT GRAPH <${inferenceGraph}>`);
+
+  // Retrieve bookkeeping copy of inferred triples, then remove them from the main graph
+  const inferredTurtle = await adapter.exportGraph(inferenceGraph);
+  if (inferredTurtle.trim()) {
+    await adapter.deleteTriples(graphUri, { turtle: inferredTurtle });
+  }
+
+  // Drop the bookkeeping graph
+  await adapter.sparqlUpdate(`DROP SILENT GRAPH <${inferenceGraph}>`);
 }
 
 export async function materializeInferences(
-  endpoint: string,
+  adapter: StoreAdapter,
   graphUri: string,
 ): Promise<InferenceResult> {
-  // 1. Fetch all triples from the asserted graph
-  const turtle = await exportGraph(endpoint, graphUri);
+  // 1. Clear any previously materialised inferences first
+  await clearInferences(adapter, graphUri);
 
-  // 2. Parse into Triple[]
+  // 2. Fetch all triples from the (now clean) asserted graph
+  const turtle = await adapter.exportGraph(graphUri);
+
+  // 3. Parse into Triple[]
   const triples = turtle.trim() ? await parseTurtleToTriples(turtle) : [];
 
-  // 3. Compute inferences (pure function)
+  // 4. Compute inferences (pure function)
   const { inferred, rules } = computeInferences(triples);
-
-  // 4. Clear previous inference graph
-  const inferenceGraph = getInferenceGraphUri(graphUri);
-  await sparqlUpdate(endpoint, `DROP SILENT GRAPH <${inferenceGraph}>`);
 
   // 5. Insert inferred triples if any
   if (inferred.length > 0) {
     const inferredTurtle = await triplesToTurtle(inferred);
-    await insertTurtle(endpoint, inferenceGraph, inferredTurtle);
+
+    // Insert into the MAIN graph so regular queries find them without cross-graph joins
+    await adapter.insertTurtle(graphUri, inferredTurtle);
+
+    // Also insert into the bookkeeping graph so status/clear can account for them
+    const inferenceGraph = getInferenceGraphUri(graphUri);
+    await adapter.insertTurtle(inferenceGraph, inferredTurtle);
   }
 
   // 6. Return result

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { loadConfig, resolveGraphUri } from '../lib/config.js';
-import { sparqlQuery, hasGraphScope, autoScopeQuery } from '../lib/oxigraph.js';
-import { getInferenceGraphUri } from '../lib/reasoner.js';
+import { createReadyAdapter } from '../lib/store-factory.js';
+import { hasGraphScope, autoScopeQuery } from '../lib/sparql-utils.js';
 
 function formatTable(vars: string[], bindings: Array<Record<string, { type: string; value: string }>>): string {
   if (bindings.length === 0) {
@@ -47,48 +47,6 @@ function formatCsv(vars: string[], bindings: Array<Record<string, { type: string
   return [header, ...rows].join('\n');
 }
 
-/**
- * Wraps the WHERE body so it queries both the asserted and inference graphs
- * using a UNION pattern. Returns null if brace matching fails.
- */
-function autoScopeQueryWithInference(sparql: string, graphUri: string): string | null {
-  const inferenceGraphUri = getInferenceGraphUri(graphUri);
-
-  // Find the WHERE { or first {
-  const whereMatch = sparql.match(/\bWHERE\s*\{/i);
-  let braceStart: number;
-
-  if (whereMatch && whereMatch.index !== undefined) {
-    braceStart = whereMatch.index + whereMatch[0].length - 1;
-  } else {
-    const firstBrace = sparql.indexOf('{');
-    if (firstBrace === -1) return null;
-    braceStart = firstBrace;
-  }
-
-  // Find matching closing brace
-  let depth = 0;
-  let braceEnd = -1;
-  for (let i = braceStart; i < sparql.length; i++) {
-    if (sparql[i] === '{') depth++;
-    else if (sparql[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        braceEnd = i;
-        break;
-      }
-    }
-  }
-
-  if (braceEnd === -1) return null;
-
-  const before = sparql.slice(0, braceStart + 1);
-  const inner = sparql.slice(braceStart + 1, braceEnd);
-  const after = sparql.slice(braceEnd);
-
-  return `${before} { GRAPH <${graphUri}> {${inner}} } UNION { GRAPH <${inferenceGraphUri}> {${inner}} } ${after}`;
-}
-
 export function registerQuery(program: Command): void {
   program
     .command('query <sparql>')
@@ -96,9 +54,8 @@ export function registerQuery(program: Command): void {
     .option('--format <type>', 'Output format: table, json, csv', 'table')
     .option('--json', 'Output raw JSON (alias for --format json)')
     .option('--raw', 'Skip automatic Named Graph scoping')
-    .option('--no-infer', 'Exclude inference graph from auto-scoped queries')
     .option('--graph <name>', 'Target a specific named graph')
-    .action(async (sparql: string, options: { format?: string; json?: boolean; raw?: boolean; infer?: boolean; graph?: string }) => {
+    .action(async (sparql: string, options: { format?: string; json?: boolean; raw?: boolean; graph?: string }) => {
       let config;
       try {
         config = loadConfig();
@@ -116,10 +73,7 @@ export function registerQuery(program: Command): void {
       // has already specified graph scoping or passed --raw.
       let effectiveSparql = sparql;
       if (!options.raw && !hasGraphScope(sparql)) {
-        const useInference = options.infer !== false;
-        const scoped = useInference
-          ? autoScopeQueryWithInference(sparql, graphUri)
-          : autoScopeQuery(sparql, graphUri);
+        const scoped = autoScopeQuery(sparql, graphUri);
         if (scoped !== null) {
           effectiveSparql = scoped;
         } else {
@@ -129,7 +83,8 @@ export function registerQuery(program: Command): void {
       }
 
       try {
-        const results = await sparqlQuery(config.endpoint, effectiveSparql);
+        const adapter = await createReadyAdapter(config);
+        const results = await adapter.sparqlQuery(effectiveSparql);
 
         switch (format) {
           case 'json':
