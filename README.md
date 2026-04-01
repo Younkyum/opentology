@@ -1,6 +1,6 @@
 # OpenTology
 
-> CLI-managed RDF/SPARQL infrastructure -- Supabase for RDF
+> CLI-managed RDF/SPARQL infrastructure with RDFS reasoning and SHACL validation -- Supabase for knowledge graphs
 
 [English](#english) | [한국어](#한국어)
 
@@ -8,37 +8,133 @@
 
 ## English
 
-Existing ontology tools have terrible developer experience. OpenTology gives you managed RDF with a simple CLI -- initialize a project, write Turtle, validate, push, and query, all from your terminal. It also ships an MCP server so your AI assistant can manage your knowledge graph directly.
+### Architecture
+
+```mermaid
+graph TB
+    subgraph CLI["opentology CLI"]
+        Init[init]
+        Push[push]
+        Query[query]
+        Validate[validate]
+        Infer[infer]
+        More[...]
+    end
+
+    subgraph MCP["MCP Server"]
+        Tools[11 Tools]
+        Resource["opentology://schema"]
+    end
+
+    subgraph Adapter["StoreAdapter"]
+        HTTP["HTTP Mode\nOxigraph Server"]
+        Embedded["Embedded Mode\nWASM In-Process"]
+    end
+
+    subgraph Pipeline["Processing Pipeline"]
+        SHACL["SHACL Validation"]
+        RDFS["RDFS Reasoning"]
+    end
+
+    CLI --> Adapter
+    MCP --> Adapter
+    CLI --> Pipeline
+    Pipeline --> Adapter
+```
+
+Existing ontology tools have terrible developer experience. OpenTology gives you managed RDF with a simple CLI -- initialize a project, write Turtle, validate with SHACL, push with automatic RDFS inference, and query, all from your terminal. It ships an MCP server so AI assistants can manage your knowledge graph directly. It runs in embedded mode with zero Docker dependency, or connects to an Oxigraph server over HTTP.
 
 ### Quick Demo
 
 ```bash
-# Initialize project
-opentology init my-project
+# Zero-install embedded mode (no Docker!)
+opentology init --embedded my-project
 
-# Write your ontology (or let your AI assistant do it)
-cat > schema.ttl << 'EOF'
-@prefix ex: <https://example.org/> .
-@prefix schema: <http://schema.org/> .
-ex:doctor a schema:Person ;
-  schema:name "Dr. Kim" ;
-  schema:worksFor ex:hospital .
+# Define ontology with class hierarchy
+cat > ontology.ttl << 'EOF'
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <http://example.org/> .
+ex:Person a rdfs:Class .
+ex:Doctor rdfs:subClassOf ex:Person .
+ex:Kim a ex:Doctor ; ex:name "Dr. Kim" .
+ex:Lee a ex:Person ; ex:name "Lee" .
 EOF
 
-# Validate, push, query
-opentology validate schema.ttl
-opentology push schema.ttl
-opentology query 'SELECT ?name WHERE { ?s schema:name ?name }'
+# Push with automatic RDFS inference
+opentology push ontology.ttl
+# -> Pushed 6 triples
+# -> Inferred 1 additional triples
+
+# Query: Doctor instances found as Person (inference!)
+opentology query 'SELECT ?name WHERE { ?p a ex:Person . ?p ex:name ?name }'
+# -> Kim, Lee  (Kim is a Doctor, but inferred as Person)
 ```
+
+### Push Pipeline
+
+```mermaid
+graph LR
+    A["Write .ttl"] --> B["validate"]
+    B --> C{"SHACL shapes?"}
+    C -->|Yes| D["SHACL Check"]
+    C -->|No| E["push"]
+    D -->|Pass| E
+    D -->|Fail| F["Error"]
+    E --> G["RDFS Inference"]
+    G --> H["query"]
+```
+
+### Why OpenTology?
+
+| | OpenTology | Raw Oxigraph | Neo4j |
+|---|---|---|---|
+| Setup | `npm install -g opentology` | Manual binary/Docker config | Server install + license |
+| Docker required | No (embedded mode) | Yes | Yes |
+| RDFS reasoning | Automatic on push | Manual SPARQL CONSTRUCT | Not native |
+| SHACL validation | Built-in | Manual tooling | N/A |
+| AI integration | MCP server with 11 tools | None | Plugin ecosystem |
+| Query language | SPARQL (auto-prefixed) | SPARQL (raw) | Cypher |
+| Data format | Turtle files | Turtle/N-Triples | Property graph |
+| Project scoping | Automatic named graphs | Manual | Database-level |
 
 ### Features
 
-- **6 CLI commands** -- init, validate, push, query, status, pull
-- **Auto Named Graph scoping** -- no need to write `GRAPH <...>` in your queries
-- **MCP Server** for AI agent integration (Claude Code, Cursor, etc.)
-- **Schema introspection via MCP resource and tool**
-- **Turtle validation** before every push
-- **Oxigraph-powered** -- Rust-based, fast, full SPARQL 1.1 support
+**Core**
+
+- 14 CLI commands covering the full RDF lifecycle
+- Project-level configuration with `.opentology.json`
+- Named graph scoping -- queries are automatically scoped to your project
+- Two modes: HTTP (Oxigraph server) and embedded (WASM, zero Docker)
+- Prefix registry with auto-injection into SPARQL queries
+
+**Reasoning**
+
+- RDFS inference: subClassOf, subPropertyOf, domain, range
+- Query `Person` and get `Doctor` instances automatically
+- Auto-materialization on push, manual control with `infer`
+
+**Validation**
+
+- Turtle syntax validation before every push
+- SHACL shape constraint validation
+- `shapes/` directory convention for organizing shape files
+
+**AI Integration**
+
+- MCP server with 11 tools and 1 resource
+- `opentology://schema` resource auto-loads ontology overview
+- Works with Claude Code, Cursor, and any MCP-compatible client
+
+### Two Modes
+
+| | HTTP Mode | Embedded Mode |
+|---|---|---|
+| Backend | Oxigraph server (Docker or binary) | In-process WASM store |
+| Docker | Required | Not required |
+| Init | `opentology init my-project` | `opentology init --embedded my-project` |
+| Source of truth | Oxigraph server | Local `.ttl` files |
+| Best for | Production, shared access | Local dev, quick experiments |
+| Performance | Server-grade | Single-user |
 
 ### Installation
 
@@ -46,36 +142,39 @@ opentology query 'SELECT ?name WHERE { ?s schema:name ?name }'
 npm install -g opentology
 ```
 
-### Prerequisites
+**Prerequisites:** Node.js 18+
 
-- Node.js 18+
-- Oxigraph running (Docker):
+For HTTP mode, you also need Oxigraph running:
 
 ```bash
 docker run -p 7878:7878 ghcr.io/oxigraph/oxigraph \
   serve --location /data --bind 0.0.0.0:7878
 ```
 
+For embedded mode, no additional setup is needed.
+
 ### CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `opentology init <project-id>` | Initialize a new project with config and named graph |
-| `opentology validate <file>` | Validate Turtle syntax without pushing |
-| `opentology push <file>` | Validate and insert triples into the project graph |
-| `opentology query <sparql>` | Run a SPARQL query (auto-scoped to your project graph) |
-| `opentology status` | Show project info and triple count |
-| `opentology pull` | Export the entire project graph as Turtle |
+| `opentology init [project-id]` | Initialize project (`--embedded` for Docker-free mode) |
+| `opentology validate <file>` | Validate Turtle syntax (`--shacl` for SHACL validation) |
+| `opentology push <file>` | Push triples with auto SHACL validation and RDFS inference (`--replace`, `--no-shacl`, `--no-infer`) |
+| `opentology query <sparql>` | Run SPARQL with auto prefix injection (`--format table\|json\|csv`, `--raw`) |
+| `opentology status` | Show asserted/inferred/total triple counts (file count in embedded mode) |
+| `opentology pull` | Export project graph as Turtle |
+| `opentology drop` | Drop the entire project graph (`--force` to skip confirmation) |
+| `opentology delete <file>` | Delete triples from a file or by pattern (`--where`) |
+| `opentology diff <file>` | Compare local Turtle file against the graph |
+| `opentology shapes` | List or show SHACL shapes |
+| `opentology infer` | Run RDFS materialization (`--clear` to remove inferred triples) |
+| `opentology graph` | List, create, or drop named graphs |
+| `opentology prefix` | List, add, or remove project prefixes |
+| `opentology mcp` | Start the MCP server |
 
-### MCP Server / AI Agent Integration
+### MCP Integration
 
-Start the MCP server:
-
-```bash
-opentology mcp
-```
-
-Add to your Claude Code configuration (`.mcp.json`):
+Add to your MCP client configuration (`.mcp.json`):
 
 ```json
 {
@@ -88,44 +187,108 @@ Add to your Claude Code configuration (`.mcp.json`):
 }
 ```
 
-The MCP server exposes 6 tools:
+**11 Tools:**
 
 | Tool | Description |
 |------|-------------|
 | `opentology_init` | Initialize a project |
 | `opentology_validate` | Validate Turtle content |
 | `opentology_push` | Validate and push triples |
-| `opentology_query` | Execute SPARQL queries (auto-scoped) |
-| `opentology_status` | Get project status and triple count |
+| `opentology_query` | Execute SPARQL queries |
+| `opentology_status` | Get project status |
 | `opentology_pull` | Export graph as Turtle |
+| `opentology_drop` | Drop project graph |
+| `opentology_delete` | Delete triples |
+| `opentology_diff` | Compare local vs graph |
+| `opentology_schema` | Introspect ontology schema |
+| `opentology_infer` | Run RDFS inference |
 
-Your AI assistant can directly push Turtle, run SPARQL queries, and manage your knowledge graph without leaving the conversation.
+**1 Resource:**
 
-### How It Works
+| Resource | Description |
+|----------|-------------|
+| `opentology://schema` | Auto-loaded ontology overview (classes, properties, instances) |
 
-1. You (or your AI assistant) write Turtle RDF data
-2. OpenTology validates the Turtle syntax
-3. Triples are pushed to an Oxigraph Named Graph scoped to your project
-4. SPARQL queries are automatically scoped to your project graph -- no manual `GRAPH <...>` needed
-5. Export your data anytime with `pull`
+### RDFS Reasoning
+
+OpenTology automatically materializes RDFS inferences when you push data. If your ontology defines a class hierarchy, queries against a parent class return instances of all subclasses.
+
+```mermaid
+graph TD
+    Kim["ex:Kim"] -->|a| Doctor["ex:Doctor"]
+    Doctor -->|rdfs:subClassOf| MedProf["ex:MedicalProfessional"]
+    MedProf -->|rdfs:subClassOf| Person["ex:Person"]
+    Kim -.->|inferred: a| MedProf
+    Kim -.->|inferred: a| Person
+
+    style Kim fill:#4CAF50,color:white
+    style Doctor fill:#2196F3,color:white
+    style MedProf fill:#2196F3,color:white
+    style Person fill:#2196F3,color:white
+```
+
+Supported inference rules:
+
+- **rdfs:subClassOf** -- instances of subclass are instances of superclass
+- **rdfs:subPropertyOf** -- triples with subproperty imply triples with superproperty
+- **rdfs:domain** -- using a property implies the subject is of the domain class
+- **rdfs:range** -- using a property implies the object is of the range class
+
+Use `opentology infer` to manually trigger materialization, or `opentology infer --clear` to remove inferred triples.
+
+### SHACL Validation
+
+Place shape files in the `shapes/` directory. They are automatically validated on push.
+
+```turtle
+# shapes/person-shape.ttl
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix ex: <http://example.org/> .
+
+ex:PersonShape a sh:NodeShape ;
+  sh:targetClass ex:Person ;
+  sh:property [
+    sh:path ex:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string ;
+  ] .
+```
+
+```bash
+# Validate explicitly
+opentology validate --shacl data.ttl
+
+# Push auto-validates (skip with --no-shacl)
+opentology push data.ttl
+
+# List available shapes
+opentology shapes
+```
 
 ### Tech Stack
 
 - TypeScript, commander.js, n3.js
+- Oxigraph WASM (embedded mode) / Oxigraph server (HTTP mode)
 - @modelcontextprotocol/sdk for MCP server
-- Oxigraph (Rust-based RDF triplestore, SPARQL 1.1)
+- shacl-engine for SHACL validation
+- picocolors for terminal output
 
 ### Roadmap
 
-- [x] CLI with 6 commands (init, validate, push, query, status, pull)
-- [x] MCP Server for AI agent integration
+- [x] CLI with 14 commands
+- [x] MCP server with 11 tools and 1 resource
 - [x] Schema introspection (MCP resource + tool)
-- [ ] Complete CRUD (push --replace, drop, delete)
-- [ ] SHACL validation (shape constraints on push)
-- [ ] DX polish (diff, colors, better errors)
-- [ ] Multi-graph support
-- [ ] Schema tooling & namespace management
-- [ ] Embedded mode (no Docker required)
+- [x] Complete CRUD (push --replace, drop, delete)
+- [x] SHACL validation (shape constraints on push)
+- [x] DX polish (diff, colors, better errors)
+- [x] Multi-graph support
+- [x] Prefix management
+- [x] Embedded mode (no Docker required)
+- [x] RDFS reasoning (auto-materialization on push)
+- [ ] OWL reasoning (owl:sameAs, owl:inverseOf)
+- [ ] Remote ontology import
+- [ ] Version control for ontology snapshots
+- [ ] Web UI for graph exploration
 
 ### Contributing
 
@@ -142,37 +305,133 @@ MIT
 
 ## 한국어
 
-기존 온톨로지 도구들은 개발자 경험이 좋지 않습니다. OpenTology는 간단한 CLI로 RDF를 관리할 수 있게 해줍니다. 프로젝트 초기화, Turtle 작성, 검증, 푸시, 쿼리까지 터미널에서 모두 처리합니다. MCP 서버도 내장되어 있어 AI 어시스턴트가 지식 그래프를 직접 다룰 수 있습니다.
+### 아키텍처
+
+```mermaid
+graph TB
+    subgraph CLI["opentology CLI"]
+        Init[init]
+        Push[push]
+        Query[query]
+        Validate[validate]
+        Infer[infer]
+        More[...]
+    end
+
+    subgraph MCP["MCP Server"]
+        Tools[11 Tools]
+        Resource["opentology://schema"]
+    end
+
+    subgraph Adapter["StoreAdapter"]
+        HTTP["HTTP Mode\nOxigraph Server"]
+        Embedded["Embedded Mode\nWASM In-Process"]
+    end
+
+    subgraph Pipeline["Processing Pipeline"]
+        SHACL["SHACL Validation"]
+        RDFS["RDFS Reasoning"]
+    end
+
+    CLI --> Adapter
+    MCP --> Adapter
+    CLI --> Pipeline
+    Pipeline --> Adapter
+```
+
+온톨로지 도구들은 개발자 경험이 열악합니다. OpenTology는 터미널에서 RDF의 전체 생애주기를 관리합니다. 프로젝트 초기화, Turtle 작성, SHACL 검증, RDFS 추론이 포함된 푸시, SPARQL 쿼리까지 CLI 하나로 처리합니다. MCP 서버를 내장하고 있어 AI 어시스턴트가 지식 그래프를 직접 다룰 수 있고, Docker 없이 임베디드 모드로 바로 시작할 수 있습니다.
 
 ### 빠른 시작
 
 ```bash
-# 프로젝트 초기화
-opentology init my-project
+# Docker 없이 바로 시작 (임베디드 모드)
+opentology init --embedded my-project
 
-# 온톨로지 작성 (직접 또는 AI 어시스턴트에게 맡기기)
-cat > schema.ttl << 'EOF'
-@prefix ex: <https://example.org/> .
-@prefix schema: <http://schema.org/> .
-ex:doctor a schema:Person ;
-  schema:name "Dr. Kim" ;
-  schema:worksFor ex:hospital .
+# 클래스 계층 구조가 포함된 온톨로지 작성
+cat > ontology.ttl << 'EOF'
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <http://example.org/> .
+ex:Person a rdfs:Class .
+ex:Doctor rdfs:subClassOf ex:Person .
+ex:Kim a ex:Doctor ; ex:name "Dr. Kim" .
+ex:Lee a ex:Person ; ex:name "Lee" .
 EOF
 
-# 검증, 푸시, 쿼리
-opentology validate schema.ttl
-opentology push schema.ttl
-opentology query 'SELECT ?name WHERE { ?s schema:name ?name }'
+# RDFS 추론 포함 자동 푸시
+opentology push ontology.ttl
+# -> Pushed 6 triples
+# -> Inferred 1 additional triples
+
+# Doctor를 Person으로 자동 추론하여 결과에 포함
+opentology query 'SELECT ?name WHERE { ?p a ex:Person . ?p ex:name ?name }'
+# -> Kim, Lee  (Kim은 Doctor이지만 Person으로 추론됨)
 ```
+
+### 푸시 파이프라인
+
+```mermaid
+graph LR
+    A["Write .ttl"] --> B["validate"]
+    B --> C{"SHACL shapes?"}
+    C -->|Yes| D["SHACL Check"]
+    C -->|No| E["push"]
+    D -->|Pass| E
+    D -->|Fail| F["Error"]
+    E --> G["RDFS Inference"]
+    G --> H["query"]
+```
+
+### OpenTology를 쓰는 이유
+
+| | OpenTology | Oxigraph 직접 사용 | Neo4j |
+|---|---|---|---|
+| 설치 | `npm install -g opentology` | 바이너리/Docker 직접 구성 | 서버 설치 + 라이선스 |
+| Docker 필수 | 아니오 (임베디드 모드) | 예 | 예 |
+| RDFS 추론 | 푸시 시 자동 | SPARQL CONSTRUCT 수동 작성 | 네이티브 미지원 |
+| SHACL 검증 | 내장 | 별도 도구 필요 | 해당 없음 |
+| AI 연동 | MCP 서버 11개 도구 | 없음 | 플러그인 생태계 |
+| 쿼리 언어 | SPARQL (접두사 자동 삽입) | SPARQL (수동) | Cypher |
+| 데이터 형식 | Turtle 파일 | Turtle/N-Triples | 속성 그래프 |
+| 프로젝트 구분 | Named Graph 자동 | 수동 관리 | 데이터베이스 단위 |
 
 ### 주요 기능
 
-- **CLI 명령어 6개** -- init, validate, push, query, status, pull
-- **Named Graph 자동 스코핑** -- 쿼리에 `GRAPH <...>`를 직접 쓸 필요 없음
-- **MCP 서버** 내장으로 AI 에이전트 연동 (Claude Code, Cursor 등)
-- **MCP 리소스와 도구를 통한 스키마 조회**
-- **Turtle 문법 검증** 후 푸시
-- **Oxigraph 기반** -- Rust로 작성된 고성능 SPARQL 1.1 트리플스토어
+**핵심**
+
+- RDF 전체 생애주기를 다루는 14개 CLI 명령어
+- `.opentology.json` 기반 프로젝트 설정
+- Named Graph 자동 스코핑 -- 쿼리가 프로젝트 그래프에 자동 한정
+- HTTP 모드(Oxigraph 서버)와 임베디드 모드(WASM, Docker 불필요) 지원
+- 프로젝트 수준 접두사 레지스트리, SPARQL 쿼리에 자동 삽입
+
+**추론**
+
+- RDFS 추론: subClassOf, subPropertyOf, domain, range
+- `Person`을 쿼리하면 `Doctor` 인스턴스도 자동 포함
+- 푸시 시 자동 물질화, `infer` 명령어로 수동 제어
+
+**검증**
+
+- 푸시 전 Turtle 문법 자동 검증
+- SHACL 형상 제약 조건 검증
+- `shapes/` 디렉토리 규칙으로 형상 파일 관리
+
+**AI 연동**
+
+- 11개 도구와 1개 리소스를 제공하는 MCP 서버
+- `opentology://schema` 리소스로 온톨로지 개요 자동 로드
+- Claude Code, Cursor 등 MCP 호환 클라이언트와 연동
+
+### 두 가지 모드
+
+| | HTTP 모드 | 임베디드 모드 |
+|---|---|---|
+| 백엔드 | Oxigraph 서버 (Docker 또는 바이너리) | 인프로세스 WASM 스토어 |
+| Docker | 필요 | 불필요 |
+| 초기화 | `opentology init my-project` | `opentology init --embedded my-project` |
+| 원본 데이터 | Oxigraph 서버 | 로컬 `.ttl` 파일 |
+| 적합한 용도 | 프로덕션, 공유 환경 | 로컬 개발, 빠른 실험 |
+| 성능 | 서버급 | 단일 사용자 |
 
 ### 설치
 
@@ -180,36 +439,39 @@ opentology query 'SELECT ?name WHERE { ?s schema:name ?name }'
 npm install -g opentology
 ```
 
-### 사전 요구사항
+**필수 조건:** Node.js 18+
 
-- Node.js 18+
-- Oxigraph 실행 (Docker):
+HTTP 모드를 사용하려면 Oxigraph 서버가 필요합니다:
 
 ```bash
 docker run -p 7878:7878 ghcr.io/oxigraph/oxigraph \
   serve --location /data --bind 0.0.0.0:7878
 ```
 
+임베디드 모드는 추가 설치가 필요 없습니다.
+
 ### CLI 명령어
 
 | 명령어 | 설명 |
 |--------|------|
-| `opentology init <project-id>` | 새 프로젝트 초기화 (설정 파일 및 Named Graph 생성) |
-| `opentology validate <file>` | Turtle 문법 검증 (푸시 없이 확인만) |
-| `opentology push <file>` | Turtle 검증 후 프로젝트 그래프에 트리플 삽입 |
-| `opentology query <sparql>` | SPARQL 쿼리 실행 (프로젝트 그래프에 자동 스코핑) |
-| `opentology status` | 프로젝트 정보 및 트리플 수 확인 |
-| `opentology pull` | 프로젝트 그래프 전체를 Turtle로 내보내기 |
+| `opentology init [project-id]` | 프로젝트 초기화 (`--embedded`로 Docker 불필요 모드) |
+| `opentology validate <file>` | Turtle 문법 검증 (`--shacl`로 SHACL 검증) |
+| `opentology push <file>` | SHACL 자동 검증 + RDFS 추론 포함 푸시 (`--replace`, `--no-shacl`, `--no-infer`) |
+| `opentology query <sparql>` | 접두사 자동 삽입 SPARQL 실행 (`--format table\|json\|csv`, `--raw`) |
+| `opentology status` | asserted/inferred/total 트리플 수 표시 (임베디드 모드에서 파일 수 포함) |
+| `opentology pull` | 프로젝트 그래프를 Turtle로 내보내기 |
+| `opentology drop` | 프로젝트 그래프 전체 삭제 (`--force`로 확인 생략) |
+| `opentology delete <file>` | 파일 또는 패턴(`--where`)으로 트리플 삭제 |
+| `opentology diff <file>` | 로컬 Turtle 파일과 그래프 비교 |
+| `opentology shapes` | SHACL 형상 목록 조회/상세 보기 |
+| `opentology infer` | RDFS 물질화 실행 (`--clear`로 추론 트리플 제거) |
+| `opentology graph` | Named Graph 목록/생성/삭제 |
+| `opentology prefix` | 프로젝트 접두사 목록/추가/제거 |
+| `opentology mcp` | MCP 서버 시작 |
 
-### MCP 서버 / AI 에이전트 연동
+### MCP 연동
 
-MCP 서버 실행:
-
-```bash
-opentology mcp
-```
-
-Claude Code 설정 (`.mcp.json`)에 추가:
+MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 
 ```json
 {
@@ -222,44 +484,108 @@ Claude Code 설정 (`.mcp.json`)에 추가:
 }
 ```
 
-MCP 서버가 제공하는 6개 도구:
+**11개 도구:**
 
 | 도구 | 설명 |
 |------|------|
 | `opentology_init` | 프로젝트 초기화 |
 | `opentology_validate` | Turtle 내용 검증 |
 | `opentology_push` | 트리플 검증 및 푸시 |
-| `opentology_query` | SPARQL 쿼리 실행 (자동 스코핑) |
-| `opentology_status` | 프로젝트 상태 및 트리플 수 조회 |
+| `opentology_query` | SPARQL 쿼리 실행 |
+| `opentology_status` | 프로젝트 상태 조회 |
 | `opentology_pull` | 그래프를 Turtle로 내보내기 |
+| `opentology_drop` | 프로젝트 그래프 삭제 |
+| `opentology_delete` | 트리플 삭제 |
+| `opentology_diff` | 로컬 파일과 그래프 비교 |
+| `opentology_schema` | 온톨로지 스키마 조회 |
+| `opentology_infer` | RDFS 추론 실행 |
 
-AI 어시스턴트가 대화 중에 직접 Turtle을 푸시하고, SPARQL 쿼리를 실행하고, 지식 그래프를 관리할 수 있습니다.
+**1개 리소스:**
 
-### 동작 방식
+| 리소스 | 설명 |
+|--------|------|
+| `opentology://schema` | 온톨로지 개요 자동 로드 (클래스, 속성, 인스턴스) |
 
-1. 사용자(또는 AI 어시스턴트)가 Turtle RDF 데이터를 작성
-2. OpenTology가 Turtle 문법을 검증
-3. 트리플이 프로젝트 전용 Oxigraph Named Graph에 저장
-4. SPARQL 쿼리는 프로젝트 그래프에 자동으로 스코핑 -- `GRAPH <...>` 직접 작성 불필요
-5. `pull` 명령어로 언제든 데이터 내보내기 가능
+### RDFS 추론
+
+데이터를 푸시하면 RDFS 추론이 자동으로 물질화됩니다. 온톨로지에 클래스 계층이 정의되어 있으면, 상위 클래스를 쿼리할 때 하위 클래스의 인스턴스도 함께 반환됩니다.
+
+```mermaid
+graph TD
+    Kim["ex:Kim"] -->|a| Doctor["ex:Doctor"]
+    Doctor -->|rdfs:subClassOf| MedProf["ex:MedicalProfessional"]
+    MedProf -->|rdfs:subClassOf| Person["ex:Person"]
+    Kim -.->|inferred: a| MedProf
+    Kim -.->|inferred: a| Person
+
+    style Kim fill:#4CAF50,color:white
+    style Doctor fill:#2196F3,color:white
+    style MedProf fill:#2196F3,color:white
+    style Person fill:#2196F3,color:white
+```
+
+지원하는 추론 규칙:
+
+- **rdfs:subClassOf** -- 하위 클래스의 인스턴스는 상위 클래스의 인스턴스
+- **rdfs:subPropertyOf** -- 하위 속성의 트리플은 상위 속성의 트리플을 함의
+- **rdfs:domain** -- 속성 사용 시 주어가 도메인 클래스의 인스턴스임을 함의
+- **rdfs:range** -- 속성 사용 시 목적어가 범위 클래스의 인스턴스임을 함의
+
+`opentology infer`로 수동 물질화, `opentology infer --clear`로 추론 트리플 제거가 가능합니다.
+
+### SHACL 검증
+
+`shapes/` 디렉토리에 형상 파일을 배치하면 푸시 시 자동으로 검증됩니다.
+
+```turtle
+# shapes/person-shape.ttl
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix ex: <http://example.org/> .
+
+ex:PersonShape a sh:NodeShape ;
+  sh:targetClass ex:Person ;
+  sh:property [
+    sh:path ex:name ;
+    sh:minCount 1 ;
+    sh:datatype xsd:string ;
+  ] .
+```
+
+```bash
+# 명시적 검증
+opentology validate --shacl data.ttl
+
+# 푸시 시 자동 검증 (--no-shacl로 생략 가능)
+opentology push data.ttl
+
+# 등록된 형상 목록 조회
+opentology shapes
+```
 
 ### 기술 스택
 
 - TypeScript, commander.js, n3.js
+- Oxigraph WASM (임베디드 모드) / Oxigraph 서버 (HTTP 모드)
 - @modelcontextprotocol/sdk (MCP 서버)
-- Oxigraph (Rust 기반 RDF 트리플스토어, SPARQL 1.1)
+- shacl-engine (SHACL 검증)
+- picocolors (터미널 출력)
 
 ### 로드맵
 
-- [x] CLI 6개 커맨드 (init, validate, push, query, status, pull)
-- [x] AI 에이전트 연동 MCP 서버
+- [x] 14개 CLI 명령어
+- [x] 11개 도구와 1개 리소스를 갖춘 MCP 서버
 - [x] 스키마 조회 (MCP 리소스 + 도구)
-- [ ] CRUD 완성 (push --replace, drop, delete)
-- [ ] SHACL 검증 (push 시 제약조건 자동 검증)
-- [ ] DX 개선 (diff, 컬러 출력, 에러 메시지)
-- [ ] 멀티 그래프 지원
-- [ ] 스키마 도구 및 네임스페이스 관리
-- [ ] 임베디드 모드 (Docker 불필요)
+- [x] 완전한 CRUD (push --replace, drop, delete)
+- [x] SHACL 검증 (푸시 시 형상 제약 자동 검증)
+- [x] DX 개선 (diff, 컬러 출력, 에러 메시지)
+- [x] 멀티 그래프 지원
+- [x] 접두사 관리
+- [x] 임베디드 모드 (Docker 불필요)
+- [x] RDFS 추론 (푸시 시 자동 물질화)
+- [ ] OWL 추론 (owl:sameAs, owl:inverseOf)
+- [ ] 원격 온톨로지 임포트
+- [ ] 온톨로지 스냅샷 버전 관리
+- [ ] 그래프 탐색 웹 UI
 
 ### 기여 방법
 
