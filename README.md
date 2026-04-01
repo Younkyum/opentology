@@ -44,6 +44,11 @@ graph TB
 
 Existing ontology tools have terrible developer experience. OpenTology gives you managed RDF with a simple CLI -- initialize a project, write Turtle, validate with SHACL, push with automatic RDFS inference, and query, all from your terminal. It ships an MCP server so AI assistants can manage your knowledge graph directly. It runs in embedded mode with zero Docker dependency, or connects to an Oxigraph server over HTTP.
 
+### System Requirements
+
+- **Node.js** >= 20.0.0
+- **oxigraph** uses WebAssembly (WASM) — platform-independent, runs everywhere Node.js runs. No C++ compiler, Python, or native build tools needed.
+
 ### Quick Demo
 
 ```bash
@@ -142,7 +147,7 @@ graph LR
 npm install -g opentology
 ```
 
-**Prerequisites:** Node.js 18+
+**Prerequisites:** Node.js 20+
 
 For HTTP mode, you also need Oxigraph running:
 
@@ -341,6 +346,11 @@ graph TB
 
 온톨로지 도구들은 개발자 경험이 열악합니다. OpenTology는 터미널에서 RDF의 전체 생애주기를 관리합니다. 프로젝트 초기화, Turtle 작성, SHACL 검증, RDFS 추론이 포함된 푸시, SPARQL 쿼리까지 CLI 하나로 처리합니다. MCP 서버를 내장하고 있어 AI 어시스턴트가 지식 그래프를 직접 다룰 수 있고, Docker 없이 임베디드 모드로 바로 시작할 수 있습니다.
 
+### 시스템 요구사항
+
+- **Node.js** >= 20.0.0
+- **oxigraph**는 WebAssembly(WASM)를 사용하므로 플랫폼 독립적입니다. Node.js가 실행되는 모든 환경에서 동작하며, C++ 컴파일러, Python, 또는 네이티브 빌드 도구가 필요하지 않습니다.
+
 ### 빠른 시작
 
 ```bash
@@ -439,7 +449,7 @@ graph LR
 npm install -g opentology
 ```
 
-**필수 조건:** Node.js 18+
+**필수 조건:** Node.js 20+
 
 HTTP 모드를 사용하려면 Oxigraph 서버가 필요합니다:
 
