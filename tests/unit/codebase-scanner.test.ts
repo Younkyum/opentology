@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanCodebase } from '../../src/lib/codebase-scanner.js';
+import { scanCodebase, extractDependencyGraph } from '../../src/lib/codebase-scanner.js';
 import type { CodebaseSnapshot, DirectoryNode } from '../../src/lib/codebase-scanner.js';
 
 let tempDir: string;
@@ -146,6 +146,67 @@ describe('codebase-scanner', () => {
       expect(names).not.toContain('node_modules');
       expect(names).not.toContain('dist');
       expect(names).toContain('src');
+    });
+  });
+
+  describe('dependency graph extraction', () => {
+    it('extracts local import edges between modules', async () => {
+      mkdirSync(join(tempDir, 'src', 'lib'), { recursive: true });
+      writeFileSync(join(tempDir, 'src', 'index.ts'),
+        `import { foo } from './lib/config.js';\nimport { bar } from './lib/store.js';\n`);
+      writeFileSync(join(tempDir, 'src', 'lib', 'config.ts'), `export const foo = 1;\n`);
+      writeFileSync(join(tempDir, 'src', 'lib', 'store.ts'),
+        `import { foo } from './config.js';\nexport const bar = foo;\n`);
+
+      const graph = await extractDependencyGraph(tempDir, null);
+      expect(graph.modules).toContain('src/index');
+      expect(graph.modules).toContain('src/lib/config');
+      expect(graph.modules).toContain('src/lib/store');
+      expect(graph.edges).toContainEqual({ from: 'src/index', to: 'src/lib/config' });
+      expect(graph.edges).toContainEqual({ from: 'src/index', to: 'src/lib/store' });
+      expect(graph.edges).toContainEqual({ from: 'src/lib/store', to: 'src/lib/config' });
+    });
+
+    it('deduplicates edges from multiple imports of same module', async () => {
+      mkdirSync(join(tempDir, 'src'), { recursive: true });
+      writeFileSync(join(tempDir, 'src', 'a.ts'),
+        `import { x } from './b.js';\nimport { y } from './b.js';\n`);
+      writeFileSync(join(tempDir, 'src', 'b.ts'), `export const x = 1;\nexport const y = 2;\n`);
+
+      const graph = await extractDependencyGraph(tempDir, null);
+      const aToB = graph.edges.filter(e => e.from === 'src/a' && e.to === 'src/b');
+      expect(aToB).toHaveLength(1);
+    });
+
+    it('ignores external (npm) imports', async () => {
+      mkdirSync(join(tempDir, 'src'), { recursive: true });
+      writeFileSync(join(tempDir, 'src', 'index.ts'),
+        `import { Command } from 'commander';\nimport express from 'express';\n`);
+
+      const graph = await extractDependencyGraph(tempDir, null);
+      expect(graph.edges).toHaveLength(0);
+    });
+
+    it('handles re-exports', async () => {
+      mkdirSync(join(tempDir, 'src'), { recursive: true });
+      writeFileSync(join(tempDir, 'src', 'index.ts'),
+        `export { foo } from './util.js';\n`);
+      writeFileSync(join(tempDir, 'src', 'util.ts'), `export const foo = 1;\n`);
+
+      const graph = await extractDependencyGraph(tempDir, null);
+      expect(graph.edges).toContainEqual({ from: 'src/index', to: 'src/util' });
+    });
+
+    it('is included in scanCodebase snapshot', async () => {
+      mkdirSync(join(tempDir, 'src'), { recursive: true });
+      writeFileSync(join(tempDir, 'src', 'a.ts'), `import { b } from './b.js';\n`);
+      writeFileSync(join(tempDir, 'src', 'b.ts'), `export const b = 1;\n`);
+      writeFileSync(join(tempDir, 'package.json'), '{}');
+
+      const snapshot = await scanCodebase(tempDir);
+      expect(snapshot.dependencyGraph).not.toBeNull();
+      expect(snapshot.dependencyGraph!.modules.length).toBeGreaterThan(0);
+      expect(snapshot.dependencyGraph!.edges.length).toBeGreaterThan(0);
     });
   });
 

@@ -381,7 +381,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
   const snapshot = await scanCodebase(process.cwd(), maxBytes);
   return {
     codebaseSnapshot: snapshot,
-    _hint: 'Analyze codebaseSnapshot and push Knowledge triples via opentology_push. Create otx:Project and otx:Knowledge resources in the context graph.',
+    _hint: 'Analyze codebaseSnapshot and push Knowledge/Module triples via opentology_push. Create otx:Project, otx:Knowledge, and otx:Module (with otx:dependsOn edges from dependencyGraph) resources in the context graph.',
   };
 }
 
@@ -996,7 +996,7 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'opentology_context_scan',
-        description: 'Scan the current project codebase and return a structured snapshot (package.json, directory tree, entry points, detected frameworks). Use the snapshot to create Knowledge triples via opentology_push. Can be called independently of context_init.',
+        description: 'Scan the current project codebase and return a structured snapshot (package.json, directory tree, entry points, detected frameworks, dependency graph). Includes module dependency edges extracted from import statements. Use the snapshot to create Knowledge and Module triples via opentology_push. Can be called independently of context_init.',
         inputSchema: {
           type: 'object' as const,
           properties: {
