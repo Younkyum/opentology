@@ -11,6 +11,16 @@ export interface DirectoryNode {
   children?: DirectoryNode[];
 }
 
+export interface DependencyEdge {
+  from: string;
+  to: string;
+}
+
+export interface DependencyGraph {
+  modules: string[];
+  edges: DependencyEdge[];
+}
+
 export interface CodebaseSnapshot {
   packageJson: {
     name?: string;
@@ -33,6 +43,7 @@ export interface CodebaseSnapshot {
     content: string;
   }>;
   detectedImports: string[];
+  dependencyGraph: DependencyGraph | null;
   readme: string | null;
   truncated?: boolean;
 }
@@ -200,6 +211,95 @@ async function detectImports(rootDir: string, filePaths: string[]): Promise<stri
   return [...imports].sort();
 }
 
+async function collectSourceFiles(rootDir: string, dir: string, gitFiles: Set<string> | null): Promise<string[]> {
+  const results: string[] = [];
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    const relPath = relative(rootDir, join(dir, entry.name));
+    if (isExcluded(entry.name, gitFiles, relPath)) continue;
+    if (entry.isDirectory()) {
+      results.push(...await collectSourceFiles(rootDir, join(dir, entry.name), gitFiles));
+    } else if (entry.isFile() && /\.[tj]sx?$/.test(entry.name)) {
+      results.push(relPath);
+    }
+  }
+  return results;
+}
+
+const LOCAL_IMPORT_REGEX = /(?:import|export)\s+(?:(?:type\s+)?(?:\{[^}]*\}|[^'";\n]+)\s+from\s+)?['"](\.\.?\/[^'"]+)['"]/g;
+
+function normalizeImportPath(fromFile: string, importPath: string): string | null {
+  const fromDir = fromFile.includes('/') ? fromFile.substring(0, fromFile.lastIndexOf('/')) : '.';
+  const parts = (fromDir === '.' ? importPath : `${fromDir}/${importPath}`).split('/');
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (part === '.') continue;
+    if (part === '..') { resolved.pop(); continue; }
+    resolved.push(part);
+  }
+  let result = resolved.join('/');
+  // Strip file extension for module name
+  result = result.replace(/\.[tj]sx?$/, '').replace(/\.js$/, '');
+  return result || null;
+}
+
+export async function extractDependencyGraph(rootDir: string, gitFiles: Set<string> | null): Promise<DependencyGraph> {
+  const sourceFiles = await collectSourceFiles(rootDir, rootDir, gitFiles);
+  const moduleSet = new Set<string>();
+  const edges: DependencyEdge[] = [];
+
+  for (const filePath of sourceFiles) {
+    const moduleName = filePath.replace(/\.[tj]sx?$/, '');
+    moduleSet.add(moduleName);
+
+    let content: string;
+    try {
+      content = await readFile(join(rootDir, filePath), 'utf-8');
+    } catch {
+      continue;
+    }
+
+    LOCAL_IMPORT_REGEX.lastIndex = 0;
+    let match;
+    while ((match = LOCAL_IMPORT_REGEX.exec(content)) !== null) {
+      const importPath = match[1];
+      const resolved = normalizeImportPath(filePath, importPath);
+      if (resolved) {
+        // Find the actual file (could be .ts, .tsx, /index.ts, etc.)
+        const target = sourceFiles.find(f => {
+          const noExt = f.replace(/\.[tj]sx?$/, '');
+          return noExt === resolved || noExt === `${resolved}/index`;
+        });
+        if (target) {
+          const targetModule = target.replace(/\.[tj]sx?$/, '');
+          if (targetModule !== moduleName) {
+            edges.push({ from: moduleName, to: targetModule });
+          }
+        }
+      }
+    }
+  }
+
+  // Deduplicate edges
+  const seen = new Set<string>();
+  const uniqueEdges = edges.filter(e => {
+    const key = `${e.from}->${e.to}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return {
+    modules: [...moduleSet].sort(),
+    edges: uniqueEdges,
+  };
+}
+
 function byteLength(obj: unknown): number {
   return Buffer.byteLength(JSON.stringify(obj), 'utf-8');
 }
@@ -239,6 +339,12 @@ function applyTruncation(snapshot: CodebaseSnapshot, maxBytes: number): Codebase
   // Stage 4: Drop detectedImports
   if (byteLength(snapshot) > maxBytes) {
     snapshot.detectedImports = [];
+    snapshot.truncated = true;
+  }
+
+  // Stage 5: Drop dependencyGraph
+  if (byteLength(snapshot) > maxBytes) {
+    snapshot.dependencyGraph = null;
     snapshot.truncated = true;
   }
 
@@ -290,6 +396,9 @@ export async function scanCodebase(rootDir: string, maxBytes: number = DEFAULT_M
   // Detect imports
   const detectedImports = await detectImports(rootDir, entryPointPaths);
 
+  // Extract dependency graph
+  const dependencyGraph = await extractDependencyGraph(rootDir, gitFiles);
+
   // Read README
   const readme = await readTruncatedFile(join(rootDir, 'README.md'), MAX_README_LINES);
 
@@ -299,6 +408,7 @@ export async function scanCodebase(rootDir: string, maxBytes: number = DEFAULT_M
     directoryTree,
     entryPoints,
     detectedImports,
+    dependencyGraph,
     readme,
   };
 

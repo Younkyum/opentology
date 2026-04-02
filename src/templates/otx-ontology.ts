@@ -10,6 +10,7 @@ otx:Issue a owl:Class .
 otx:Knowledge a owl:Class .
 otx:Session a owl:Class .
 otx:Pattern a owl:Class .
+otx:Module a owl:Class .
 
 otx:title a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:date a owl:DatatypeProperty ; rdfs:range xsd:date .
@@ -21,6 +22,7 @@ otx:solution a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:nextTodo a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:relatedTo a owl:ObjectProperty .
 otx:project a owl:ObjectProperty .
+otx:dependsOn a owl:ObjectProperty ; rdfs:domain otx:Module ; rdfs:range otx:Module .
 otx:stack a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:alternative a owl:DatatypeProperty ; rdfs:range xsd:string .
 `;
