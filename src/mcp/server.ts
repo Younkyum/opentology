@@ -16,6 +16,16 @@ import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 import { materializeInferences, clearInferences } from '../lib/reasoner.js';
 import type { InferenceResult } from '../lib/reasoner.js';
 
+export const MAX_TRIPLES_PER_PUSH = 100;
+
+export function assertTripleLimit(tripleCount: number): void {
+  if (tripleCount > MAX_TRIPLES_PER_PUSH) {
+    throw new Error(
+      `Too many triples (${tripleCount}). Maximum is ${MAX_TRIPLES_PER_PUSH} per push. Split your data into smaller batches.`
+    );
+  }
+}
+
 function resolveConfig(params: { endpoint?: string; graphUri?: string; graph?: string }): { config: OpenTologyConfig; graphUri: string } {
   try {
     const config = loadConfig();
@@ -77,6 +87,8 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   if (!validation.valid) {
     throw new Error(`Invalid Turtle: ${validation.error}`);
   }
+
+  assertTripleLimit(validation.tripleCount!);
 
   // Auto-validate against SHACL when shapes exist (unless explicitly false)
   if (shacl !== false && hasShapes()) {
@@ -449,7 +461,7 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'opentology_push',
-        description: 'Validate and insert Turtle (RDF) triples into the project graph. Validates syntax first, then pushes to the SPARQL endpoint. Auto-validates against SHACL shapes when shapes/ directory exists. Returns success status and triple count.',
+        description: 'Validate and insert Turtle (RDF) triples into the project graph. Validates syntax first, then pushes to the SPARQL endpoint. Auto-validates against SHACL shapes when shapes/ directory exists. Returns success status and triple count. IMPORTANT: Maximum 100 triples per call. For larger datasets, split into multiple pushes of 20-50 triples each.',
         inputSchema: {
           type: 'object' as const,
           properties: {
