@@ -5,6 +5,11 @@ export interface SparqlResults {
   };
 }
 
+export interface SchemaRelations {
+  subClassOf: Array<{ child: string; parent: string }>;
+  domainRange: Array<{ property: string; domain?: string; range?: string }>;
+}
+
 export interface StoreAdapter {
   // Core SPARQL operations
   sparqlQuery(query: string): Promise<SparqlResults>;
@@ -41,4 +46,7 @@ export interface StoreAdapter {
     properties: Array<{ property: string; count: number }>;
     sampleTriples: Array<{ s: string; p: string; o: string }>;
   }>;
+
+  // Schema relationships for visualization
+  getSchemaRelations(graphUri: string): Promise<SchemaRelations>;
 }

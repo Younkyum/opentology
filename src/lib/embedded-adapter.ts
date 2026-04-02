@@ -296,4 +296,33 @@ export class EmbeddedAdapter implements StoreAdapter {
 
     return { classUri, instanceCount, properties, sampleTriples };
   }
+
+  async getSchemaRelations(graphUri: string): Promise<import('./store-adapter.js').SchemaRelations> {
+    const subClassResults = await this.sparqlQuery(
+      `SELECT DISTINCT ?child ?parent WHERE { GRAPH <${graphUri}> { ?child <http://www.w3.org/2000/01/rdf-schema#subClassOf> ?parent } }`,
+    );
+    const subClassOf = subClassResults.results.bindings
+      .filter((b) => b['child'] && b['parent'])
+      .map((b) => ({ child: b['child']!.value, parent: b['parent']!.value }));
+
+    const domainRangeResults = await this.sparqlQuery(
+      `SELECT DISTINCT ?prop ?domain ?range WHERE {
+        GRAPH <${graphUri}> {
+          ?prop a ?type .
+          OPTIONAL { ?prop <http://www.w3.org/2000/01/rdf-schema#domain> ?domain }
+          OPTIONAL { ?prop <http://www.w3.org/2000/01/rdf-schema#range> ?range }
+          FILTER(?type IN (<http://www.w3.org/1999/02/22-rdf-syntax-ns#Property>, <http://www.w3.org/2002/07/owl#ObjectProperty>, <http://www.w3.org/2002/07/owl#DatatypeProperty>))
+        }
+      }`,
+    );
+    const domainRange = domainRangeResults.results.bindings
+      .filter((b) => b['prop'] && (b['domain'] || b['range']))
+      .map((b) => ({
+        property: b['prop']!.value,
+        domain: b['domain']?.value,
+        range: b['range']?.value,
+      }));
+
+    return { subClassOf, domainRange };
+  }
 }

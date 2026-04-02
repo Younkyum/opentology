@@ -18,6 +18,7 @@ import { hasGraphScope, autoScopeQuery, getInferenceGraphUri } from '../lib/spar
 import { validateTurtle } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 import { materializeInferences, clearInferences } from '../lib/reasoner.js';
+import { fromSchemaData, toMermaid, toDot } from '../lib/visualizer.js';
 import type { InferenceResult } from '../lib/reasoner.js';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -666,6 +667,30 @@ async function handleContextStatus(): Promise<unknown> {
   return result;
 }
 
+async function handleVisualize(args: Record<string, unknown>): Promise<unknown> {
+  const { config, graphUri } = resolveConfig({
+    graphUri: args.graphUri as string | undefined,
+    graph: args.graph as string | undefined,
+  });
+
+  const target = (args.target as string) || 'schema';
+  if (target !== 'schema') {
+    throw new Error(`Unsupported target "${target}". Currently only "schema" is supported.`);
+  }
+
+  const format = (args.format as string) || 'mermaid';
+  if (format !== 'mermaid' && format !== 'dot') {
+    throw new Error(`Unsupported format "${format}". Use "mermaid" or "dot".`);
+  }
+
+  const adapter = await createReadyAdapter(config);
+  const overview = await adapter.getSchemaOverview(graphUri);
+  const relations = await adapter.getSchemaRelations(graphUri);
+  const visGraph = fromSchemaData(overview, relations);
+
+  return format === 'dot' ? toDot(visGraph) : toMermaid(visGraph);
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new Server(
     { name: 'opentology', version: '0.1.0' },
@@ -1102,6 +1127,33 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'opentology_visualize',
+        description: 'Generate a visual diagram of the graph schema. Returns Mermaid or DOT text showing classes, properties, and their relationships (subClassOf, domain/range).',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            target: {
+              type: 'string',
+              enum: ['schema'],
+              description: 'What to visualize. Currently only "schema" is supported.',
+            },
+            format: {
+              type: 'string',
+              enum: ['mermaid', 'dot'],
+              description: 'Output format: mermaid (default) or dot (Graphviz).',
+            },
+            graph: {
+              type: 'string',
+              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -1163,6 +1215,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_context_status':
           result = await handleContextStatus();
+          break;
+        case 'opentology_visualize':
+          result = await handleVisualize(args as Record<string, unknown>);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);
