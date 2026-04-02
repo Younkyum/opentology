@@ -8,6 +8,7 @@ export interface SparqlResults {
 export interface StoreAdapter {
   // Core SPARQL operations
   sparqlQuery(query: string): Promise<SparqlResults>;
+  askQuery(query: string): Promise<boolean>;
   sparqlUpdate(update: string): Promise<void>;
   constructQuery(query: string): Promise<string>; // Returns Turtle string
 

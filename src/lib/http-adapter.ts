@@ -9,6 +9,28 @@ import {
 export class HttpAdapter implements StoreAdapter {
   constructor(private endpoint: string) {}
 
+  async askQuery(query: string): Promise<boolean> {
+    const url = `${this.endpoint}/query`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/sparql-query',
+        Accept: 'application/sparql-results+json',
+      },
+      body: query,
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `ASK query failed (${response.status} ${response.statusText})${body ? `: ${body}` : ''}`,
+      );
+    }
+
+    const json = await response.json();
+    return json.boolean === true;
+  }
+
   async sparqlQuery(query: string): Promise<SparqlResults> {
     const url = `${this.endpoint}/query`;
     const response = await fetch(url, {
