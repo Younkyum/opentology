@@ -1,0 +1,205 @@
+import { describe, it, expect } from 'vitest';
+import { Parser } from 'n3';
+import {
+  generateSymbolTriples,
+  batchTriples,
+} from '../../src/lib/deep-scan-triples.js';
+import type { DeepScanResult } from '../../src/lib/deep-scanner.js';
+
+function makeResult(overrides?: Partial<DeepScanResult>): DeepScanResult {
+  return {
+    deepScanAvailable: true,
+    classes: [],
+    interfaces: [],
+    functions: [],
+    methodCalls: [],
+    fileCount: 1,
+    symbolCount: 0,
+    scanDurationMs: 100,
+    capped: false,
+    warnings: [],
+    ...overrides,
+  };
+}
+
+describe('generateSymbolTriples', () => {
+  it('generates valid Turtle that parses via N3', () => {
+    const result = makeResult({
+      classes: [{
+        name: 'Foo',
+        filePath: 'src/lib/foo',
+        baseClass: null,
+        interfaces: [],
+        methods: [{ name: 'bar', returnType: 'string', parameters: [] }],
+        isAbstract: false,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    expect(triples.length).toBeGreaterThan(0);
+
+    // Parse as Turtle — N3 parser needs a base and prefix-free NTriples-like format
+    const parser = new Parser({ format: 'N-Triples' });
+    const quads = parser.parse(triples.join('\n'));
+    expect(quads.length).toBeGreaterThan(0);
+  });
+
+  it('produces otx:Class triple for classes', () => {
+    const result = makeResult({
+      classes: [{
+        name: 'MyClass',
+        filePath: 'src/app',
+        baseClass: null,
+        interfaces: [],
+        methods: [],
+        isAbstract: false,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const classTriple = triples.find(t => t.includes('vocab#Class'));
+    expect(classTriple).toBeDefined();
+    expect(classTriple).toContain('urn:symbol:');
+  });
+
+  it('produces otx:extends triple for inheritance', () => {
+    const result = makeResult({
+      classes: [{
+        name: 'Child',
+        filePath: 'src/child',
+        baseClass: 'src/parent/class/Parent',
+        interfaces: [],
+        methods: [],
+        isAbstract: false,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const extendsTriple = triples.find(t => t.includes('vocab#extends'));
+    expect(extendsTriple).toBeDefined();
+    expect(extendsTriple).toContain('Parent');
+  });
+
+  it('produces otx:implements triple for interface implementation', () => {
+    const result = makeResult({
+      classes: [{
+        name: 'Impl',
+        filePath: 'src/impl',
+        baseClass: null,
+        interfaces: ['src/types/interface/Serializable'],
+        methods: [],
+        isAbstract: false,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const implTriple = triples.find(t => t.includes('vocab#implements'));
+    expect(implTriple).toBeDefined();
+    expect(implTriple).toContain('Serializable');
+  });
+
+  it('produces otx:definedIn for every symbol', () => {
+    const result = makeResult({
+      classes: [{
+        name: 'A',
+        filePath: 'src/a',
+        baseClass: null,
+        interfaces: [],
+        methods: [],
+        isAbstract: false,
+      }],
+      interfaces: [{
+        name: 'B',
+        filePath: 'src/b',
+        extends: [],
+        methods: [],
+      }],
+      functions: [{
+        name: 'c',
+        filePath: 'src/c',
+        returnType: 'void',
+        parameters: [],
+        isExported: true,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const definedInTriples = triples.filter(t => t.includes('vocab#definedIn'));
+    // class A, interface B, function c → at least 3 definedIn triples
+    expect(definedInTriples.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('produces no rdfs:subClassOf triples', () => {
+    const result = makeResult({
+      classes: [{
+        name: 'X',
+        filePath: 'src/x',
+        baseClass: null,
+        interfaces: [],
+        methods: [{ name: 'm', returnType: 'void', parameters: [] }],
+        isAbstract: false,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const subClassTriples = triples.filter(t => t.includes('subClassOf'));
+    expect(subClassTriples.length).toBe(0);
+  });
+
+  it('produces otx:Interface triple for interfaces', () => {
+    const result = makeResult({
+      interfaces: [{
+        name: 'MyInterface',
+        filePath: 'src/types',
+        extends: [],
+        methods: [{ name: 'doSomething', returnType: 'void' }],
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const ifaceTriple = triples.find(t => t.includes('vocab#Interface'));
+    expect(ifaceTriple).toBeDefined();
+  });
+
+  it('produces otx:Function triple for functions', () => {
+    const result = makeResult({
+      functions: [{
+        name: 'helper',
+        filePath: 'src/utils',
+        returnType: 'string',
+        parameters: [{ name: 'x', type: 'number' }],
+        isExported: true,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+    const fnTriple = triples.find(t => t.includes('vocab#Function'));
+    expect(fnTriple).toBeDefined();
+    const returnsTriple = triples.find(t => t.includes('vocab#returns'));
+    expect(returnsTriple).toBeDefined();
+  });
+});
+
+describe('batchTriples', () => {
+  it('splits 350 triples into 4 batches of max 100', () => {
+    const triples = Array.from({ length: 350 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o> .`);
+    const batches = batchTriples(triples, 100);
+    expect(batches.length).toBe(4);
+    expect(batches[0].length).toBe(100);
+    expect(batches[1].length).toBe(100);
+    expect(batches[2].length).toBe(100);
+    expect(batches[3].length).toBe(50);
+  });
+
+  it('returns single batch for small input', () => {
+    const triples = ['<urn:a> <urn:b> <urn:c> .'];
+    const batches = batchTriples(triples, 100);
+    expect(batches.length).toBe(1);
+    expect(batches[0].length).toBe(1);
+  });
+
+  it('returns empty array for empty input', () => {
+    const batches = batchTriples([], 100);
+    expect(batches.length).toBe(0);
+  });
+});

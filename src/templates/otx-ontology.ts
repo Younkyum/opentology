@@ -25,6 +25,19 @@ otx:project a owl:ObjectProperty .
 otx:dependsOn a owl:ObjectProperty ; rdfs:domain otx:Module ; rdfs:range otx:Module .
 otx:stack a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:alternative a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+otx:Class a owl:Class .
+otx:Interface a owl:Class .
+otx:Function a owl:Class .
+otx:Method a owl:Class .
+
+otx:definedIn a owl:ObjectProperty ; rdfs:range otx:Module .
+otx:extends a owl:ObjectProperty ; rdfs:domain otx:Class ; rdfs:range otx:Class .
+otx:implements a owl:ObjectProperty ; rdfs:domain otx:Class ; rdfs:range otx:Interface .
+otx:hasMethod a owl:ObjectProperty ; rdfs:domain otx:Class ; rdfs:range otx:Method .
+otx:calls a owl:ObjectProperty ; rdfs:domain otx:Method ; rdfs:range otx:Method .
+otx:returns a owl:DatatypeProperty ; rdfs:range xsd:string .
+otx:paramType a owl:DatatypeProperty ; rdfs:range xsd:string .
 `;
 
 export function buildAskQuery(contextGraphUri: string): string {

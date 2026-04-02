@@ -1,6 +1,6 @@
 {
   "name": "opentology",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI-managed RDF/SPARQL infrastructure — Supabase for RDF",
   "type": "module",
   "bin": {
@@ -30,7 +30,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Younkyum/opentology.git"
+    "url": "git+https://github.com/Younkyum/opentology.git"
   },
   "homepage": "https://github.com/Younkyum/opentology#readme",
   "bugs": {
@@ -48,9 +48,18 @@
     "rdf-ext": "^2.6.0",
     "shacl-engine": "^1.1.0"
   },
+  "peerDependencies": {
+    "ts-morph": ">=21.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ts-morph": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/n3": "^1.26.1",
     "@types/node": "^25.5.0",
+    "ts-morph": "^27.0.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"
