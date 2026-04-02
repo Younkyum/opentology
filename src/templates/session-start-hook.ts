@@ -63,6 +63,8 @@ function formatOutput(data) {
   }
 
   lines.push('---');
+  lines.push('Dependency graph (otx:Module + otx:dependsOn) is available in the context graph.');
+  lines.push('If significant code changes occurred since last scan, consider running opentology_context_scan to update dependency triples.');
   lines.push('Reminder: At session end, push a session summary using opentology_push to the sessions graph.');
 
   return lines.join('\\n');

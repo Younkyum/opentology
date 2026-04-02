@@ -381,7 +381,9 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
   const snapshot = await scanCodebase(process.cwd(), maxBytes);
   return {
     codebaseSnapshot: snapshot,
-    _hint: 'Analyze codebaseSnapshot and push Knowledge/Module triples via opentology_push. Create otx:Project, otx:Knowledge, and otx:Module (with otx:dependsOn edges from dependencyGraph) resources in the context graph.',
+    _hint: snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0
+      ? 'Analyze codebaseSnapshot and push Knowledge triples via opentology_push. Module dependency triples (otx:Module + otx:dependsOn) are available in dependencyGraph — push them to the context graph as-is.'
+      : 'Analyze codebaseSnapshot and push Knowledge triples via opentology_push. No dependency graph was auto-extracted (non-JS/TS project or parsing issue). Inspect key source files manually and push otx:Module + otx:dependsOn triples for the important modules you identify.',
   };
 }
 
@@ -457,12 +459,40 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
 
   saveConfig(config);
 
+  // Auto-push Module triples from dependency graph
+  let moduleStats: { modules: number; edges: number } | null = null;
+  try {
+    const snapshot = await scanCodebase(process.cwd());
+    if (snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0) {
+      const dg = snapshot.dependencyGraph;
+      const adapter = await createReadyAdapter(config);
+      const sparqlTriples: string[] = [];
+      for (const mod of dg.modules) {
+        sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> .`);
+      }
+      for (const edge of dg.edges) {
+        sparqlTriples.push(`<urn:module:${edge.from}> <https://opentology.dev/vocab#dependsOn> <urn:module:${edge.to}> .`);
+      }
+      await adapter.sparqlUpdate(`INSERT DATA { GRAPH <${contextUri}> {\n${sparqlTriples.join('\n')}\n} }`);
+      moduleStats = { modules: dg.modules.length, edges: dg.edges.length };
+      actions.push(`Pushed ${dg.modules.length} Module triples with ${dg.edges.length} dependsOn edges`);
+    }
+  } catch {
+    // Non-fatal: dependency graph push is best-effort
+  }
+
+  const dependencyHint = moduleStats
+    ? `Dependency graph pushed: ${moduleStats.modules} modules, ${moduleStats.edges} edges. Query with: SELECT ?affected WHERE { ?affected otx:dependsOn+ <urn:module:...> }`
+    : 'No dependency graph auto-extracted (non-JS/TS project or no local imports found). Inspect key source files and manually push otx:Module + otx:dependsOn triples for important modules.';
+
   return {
     success: true,
     projectId: config.projectId,
     contextGraph: contextUri,
     sessionsGraph: sessionsUri,
     actions,
+    moduleStats,
+    dependencyHint,
     hookSnippet: {
       hooks: {
         SessionStart: [{
