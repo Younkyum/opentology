@@ -9,6 +9,8 @@ import {
   GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, saveConfig, configExists, resolveGraphUri } from '../lib/config.js';
+import { deepScan } from '../lib/deep-scanner.js';
+import { pushSymbolTriples } from '../lib/deep-scan-triples.js';
 import type { OpenTologyConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
 import type { StoreAdapter } from '../lib/store-adapter.js';
@@ -377,6 +379,42 @@ async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
 }
 
 async function handleContextScan(args: Record<string, unknown>): Promise<unknown> {
+  const depth = (args.depth as string | undefined) ?? 'module';
+
+  if (depth === 'symbol') {
+    const scanResult = await deepScan(process.cwd(), {
+      maxFiles: args.maxFiles as number | undefined,
+      maxSymbols: args.maxSymbols as number | undefined,
+      timeoutMs: args.timeoutMs as number | undefined,
+      includeMethodCalls: args.includeMethodCalls as boolean | undefined,
+    });
+
+    if (!scanResult.deepScanAvailable) {
+      return scanResult;
+    }
+
+    // Auto-push triples server-side
+    let pushStats: { triplesInserted: number; batchCount: number } | null = null;
+    try {
+      const config = loadConfig();
+      const contextUri = `${config.graphUri}/context`;
+      const adapter = await createReadyAdapter(config);
+      pushStats = await pushSymbolTriples(adapter, contextUri, scanResult);
+    } catch {
+      // Non-fatal: push is best-effort
+    }
+
+    return {
+      ...scanResult,
+      pushStats,
+      _experimental: true,
+      _hint: pushStats
+        ? `Symbol triples pushed: ${pushStats.triplesInserted} triples in ${pushStats.batchCount} batches. Query with: SELECT ?c WHERE { ?c a otx:Class ; otx:definedIn <urn:module:...> }`
+        : 'Deep scan completed but triple push failed. Use opentology_push manually with the generated triples.',
+    };
+  }
+
+  // Default: module-level scan (existing behavior)
   const maxBytes = (args.maxSnapshotBytes as number | undefined) ?? 15360;
   const snapshot = await scanCodebase(process.cwd(), maxBytes);
   return {
@@ -1026,13 +1064,34 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'opentology_context_scan',
-        description: 'Scan the current project codebase and return a structured snapshot (package.json, directory tree, entry points, detected frameworks, dependency graph). Includes module dependency edges extracted from import statements. Use the snapshot to create Knowledge and Module triples via opentology_push. Can be called independently of context_init.',
+        description: 'Scan the current project codebase. depth="module" (default) returns a structured snapshot with file-level dependency graph. depth="symbol" (experimental) uses ts-morph to extract class/interface/method-level dependencies and auto-pushes OTX triples to the context graph.',
         inputSchema: {
           type: 'object' as const,
           properties: {
             maxSnapshotBytes: {
               type: 'number',
-              description: 'Maximum snapshot payload size in bytes (default: 15360). Truncates and warns if exceeded.',
+              description: 'Maximum snapshot payload size in bytes (default: 15360). Only used when depth="module".',
+            },
+            depth: {
+              type: 'string',
+              enum: ['module', 'symbol'],
+              description: 'Scan depth: "module" for file-level imports (default), "symbol" for class/interface/method-level analysis (experimental, requires ts-morph).',
+            },
+            maxSymbols: {
+              type: 'number',
+              description: 'Maximum symbols to extract when depth="symbol" (default: 300).',
+            },
+            maxFiles: {
+              type: 'number',
+              description: 'Maximum source files to scan when depth="symbol" (default: 500).',
+            },
+            timeoutMs: {
+              type: 'number',
+              description: 'Timeout in milliseconds for symbol scan (default: 30000).',
+            },
+            includeMethodCalls: {
+              type: 'boolean',
+              description: 'Extract method call relationships when depth="symbol" (default: false, expensive).',
             },
           },
         },
