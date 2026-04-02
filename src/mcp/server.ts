@@ -15,6 +15,12 @@ import { validateTurtle } from '../lib/validator.js';
 import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 import { materializeInferences, clearInferences } from '../lib/reasoner.js';
 import type { InferenceResult } from '../lib/reasoner.js';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
+import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
+import { generateHookScript } from '../templates/session-start-hook.js';
+import type { ContextLoadOutput } from '../commands/context.js';
 
 export const MAX_TRIPLES_PER_PUSH = 100;
 
@@ -366,6 +372,202 @@ async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
   return result;
 }
 
+async function handleContextInit(args: Record<string, unknown>): Promise<unknown> {
+  const force = args.force as boolean | undefined;
+  const config = loadConfig();
+  const graphs = config.graphs ?? {};
+  const contextUri = `${config.graphUri}/context`;
+  const sessionsUri = `${config.graphUri}/sessions`;
+  const actions: string[] = [];
+
+  // Create graphs
+  if (!graphs['context']) {
+    graphs['context'] = contextUri;
+    actions.push(`Created graph 'context' -> ${contextUri}`);
+  }
+  if (!graphs['sessions']) {
+    graphs['sessions'] = sessionsUri;
+    actions.push(`Created graph 'sessions' -> ${sessionsUri}`);
+  }
+  config.graphs = graphs;
+
+  // Bootstrap ontology
+  const ontologyDir = join(process.cwd(), '.opentology');
+  const ontologyPath = join(ontologyDir, 'ontology.ttl');
+  if (!existsSync(ontologyPath) || force) {
+    mkdirSync(ontologyDir, { recursive: true });
+    writeFileSync(ontologyPath, OTX_BOOTSTRAP_TURTLE, 'utf-8');
+    if (!config.files) config.files = {};
+    if (!config.files[contextUri]) config.files[contextUri] = [];
+    const relPath = '.opentology/ontology.ttl';
+    if (!config.files[contextUri].includes(relPath)) {
+      config.files[contextUri].push(relPath);
+    }
+    actions.push('Bootstrapped otx ontology (6 classes, 12 properties)');
+  }
+
+  // Generate hook script
+  const hookDir = join(process.cwd(), '.opentology', 'hooks');
+  const hookPath = join(hookDir, 'session-start.mjs');
+  if (!existsSync(hookPath) || force) {
+    mkdirSync(hookDir, { recursive: true });
+    writeFileSync(hookPath, generateHookScript(), 'utf-8');
+    actions.push('Generated hook: .opentology/hooks/session-start.mjs');
+  }
+
+  // Update CLAUDE.md
+  const claudeMdPath = join(process.cwd(), 'CLAUDE.md');
+  const section = generateContextSection(config.projectId, config.graphUri);
+  if (!existsSync(claudeMdPath) || force) {
+    updateClaudeMd(claudeMdPath, section);
+    actions.push('Updated CLAUDE.md with context instructions');
+  } else {
+    updateClaudeMd(claudeMdPath, section);
+    actions.push('Updated CLAUDE.md context section');
+  }
+
+  saveConfig(config);
+
+  return {
+    success: true,
+    projectId: config.projectId,
+    contextGraph: contextUri,
+    sessionsGraph: sessionsUri,
+    actions,
+    hookSnippet: {
+      hooks: {
+        SessionStart: [{
+          type: 'command',
+          command: 'node .opentology/hooks/session-start.mjs',
+        }],
+      },
+    },
+  };
+}
+
+async function handleContextLoad(): Promise<ContextLoadOutput> {
+  const config = loadConfig();
+  const graphs = config.graphs ?? {};
+  if (!graphs['context'] || !graphs['sessions']) {
+    throw new Error('Context not initialized. Use opentology_context_init first.');
+  }
+
+  const contextUri = graphs['context'];
+  const sessionsUri = graphs['sessions'];
+  const adapter = await createReadyAdapter(config);
+
+  const output: ContextLoadOutput = {
+    projectId: config.projectId,
+    graphUri: config.graphUri,
+    sessions: [],
+    openIssues: [],
+    recentDecisions: [],
+    meta: {
+      contextTripleCount: 0,
+      sessionsTripleCount: 0,
+      loadedAt: new Date().toISOString(),
+    },
+    warnings: [],
+  };
+
+  // Query 1: Recent sessions
+  try {
+    const r = await adapter.sparqlQuery(`
+      PREFIX otx: <https://opentology.dev/vocab#>
+      SELECT ?session ?title ?date ?nextTodo WHERE {
+        GRAPH <${sessionsUri}> {
+          ?session a otx:Session ; otx:title ?title ; otx:date ?date .
+          OPTIONAL { ?session otx:nextTodo ?nextTodo }
+        }
+      } ORDER BY DESC(?date) LIMIT 3
+    `);
+    output.sessions = r.results.bindings.map((b) => ({
+      uri: b['session']?.value ?? '',
+      title: b['title']?.value ?? '',
+      date: b['date']?.value ?? '',
+      ...(b['nextTodo']?.value ? { nextTodo: b['nextTodo'].value } : {}),
+    }));
+  } catch (err) {
+    output.warnings!.push(`Sessions query failed: ${(err as Error).message}`);
+  }
+
+  // Query 2: Open issues
+  try {
+    const r = await adapter.sparqlQuery(`
+      PREFIX otx: <https://opentology.dev/vocab#>
+      SELECT ?issue ?title ?date WHERE {
+        GRAPH <${contextUri}> {
+          ?issue a otx:Issue ; otx:title ?title ; otx:date ?date ; otx:status "open" .
+        }
+      } ORDER BY DESC(?date) LIMIT 10
+    `);
+    output.openIssues = r.results.bindings.map((b) => ({
+      uri: b['issue']?.value ?? '',
+      title: b['title']?.value ?? '',
+      date: b['date']?.value ?? '',
+    }));
+  } catch (err) {
+    output.warnings!.push(`Issues query failed: ${(err as Error).message}`);
+  }
+
+  // Query 3: Recent decisions
+  try {
+    const r = await adapter.sparqlQuery(`
+      PREFIX otx: <https://opentology.dev/vocab#>
+      SELECT ?decision ?title ?date ?reason WHERE {
+        GRAPH <${contextUri}> {
+          ?decision a otx:Decision ; otx:title ?title ; otx:date ?date .
+          OPTIONAL { ?decision otx:reason ?reason }
+        }
+      } ORDER BY DESC(?date) LIMIT 3
+    `);
+    output.recentDecisions = r.results.bindings.map((b) => ({
+      uri: b['decision']?.value ?? '',
+      title: b['title']?.value ?? '',
+      date: b['date']?.value ?? '',
+      ...(b['reason']?.value ? { reason: b['reason'].value } : {}),
+    }));
+  } catch (err) {
+    output.warnings!.push(`Decisions query failed: ${(err as Error).message}`);
+  }
+
+  try { output.meta.contextTripleCount = await adapter.getGraphTripleCount(contextUri); } catch { /* */ }
+  try { output.meta.sessionsTripleCount = await adapter.getGraphTripleCount(sessionsUri); } catch { /* */ }
+
+  if (output.warnings!.length === 0) delete output.warnings;
+  return output;
+}
+
+async function handleContextStatus(): Promise<unknown> {
+  const config = loadConfig();
+  const graphs = config.graphs ?? {};
+  const hasContext = !!graphs['context'];
+  const hasSessions = !!graphs['sessions'];
+  const initialized = hasContext && hasSessions;
+
+  const result: Record<string, unknown> = { initialized };
+
+  if (initialized) {
+    const adapter = await createReadyAdapter(config);
+    result.graphs = {
+      context: { uri: graphs['context'], triples: await adapter.getGraphTripleCount(graphs['context']).catch(() => 0) },
+      sessions: { uri: graphs['sessions'], triples: await adapter.getGraphTripleCount(graphs['sessions']).catch(() => 0) },
+    };
+  }
+
+  result.hook = existsSync(join(process.cwd(), '.opentology', 'hooks', 'session-start.mjs'));
+
+  const claudeMdPath = join(process.cwd(), 'CLAUDE.md');
+  if (!existsSync(claudeMdPath)) {
+    result.claudeMd = 'missing';
+  } else {
+    const { readFileSync } = await import('node:fs');
+    result.claudeMd = readFileSync(claudeMdPath, 'utf-8').includes('OPENTOLOGY:CONTEXT:BEGIN') ? 'markers_present' : 'markers_missing';
+  }
+
+  return result;
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new Server(
     { name: 'opentology', version: '0.1.0' },
@@ -704,6 +906,35 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'opentology_context_init',
+        description: 'Initialize project context graph for session-based knowledge management. Creates context/sessions named graphs, bootstraps otx ontology vocabulary, generates a Claude Code SessionStart hook script, and updates CLAUDE.md. Idempotent — safe to call multiple times. Use force: true to regenerate hook and CLAUDE.md.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            force: {
+              type: 'boolean',
+              description: 'Regenerate hook script and CLAUDE.md even if they already exist',
+            },
+          },
+        },
+      },
+      {
+        name: 'opentology_context_load',
+        description: 'Load project context: recent sessions (last 3), open issues (up to 10), and recent decisions (last 3) from the context graph. Returns structured JSON. Call this at the start of a session to understand project state. Requires context to be initialized first (opentology_context_init).',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
+      {
+        name: 'opentology_context_status',
+        description: 'Check whether project context is initialized. Shows graph triple counts, hook script presence, and CLAUDE.md marker status.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
     ],
   }));
 
@@ -753,6 +984,15 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_infer':
           result = await handleInfer(args as Record<string, unknown>);
+          break;
+        case 'opentology_context_init':
+          result = await handleContextInit(args as Record<string, unknown>);
+          break;
+        case 'opentology_context_load':
+          result = await handleContextLoad();
+          break;
+        case 'opentology_context_status':
+          result = await handleContextStatus();
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);
