@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
-import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
@@ -134,8 +134,19 @@ export function registerContext(program: Command): void {
         // Step 5: Generate slash commands
         const commandsDir = join(process.cwd(), '.claude', 'commands');
         const slashCommands = generateSlashCommands();
+        const expectedFilenames = new Set(slashCommands.map((c) => c.filename));
         let slashCreated = 0;
         mkdirSync(commandsDir, { recursive: true });
+
+        // Clean up stale slash command files from previous naming conventions
+        if (existsSync(commandsDir)) {
+          for (const file of readdirSync(commandsDir)) {
+            if (file.endsWith('.md') && !expectedFilenames.has(file) && file.includes('context-')) {
+              unlinkSync(join(commandsDir, file));
+            }
+          }
+        }
+
         for (const cmd of slashCommands) {
           const cmdPath = join(commandsDir, cmd.filename);
           if (!existsSync(cmdPath) || opts.force) {
