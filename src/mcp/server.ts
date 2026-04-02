@@ -5,6 +5,8 @@ import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, saveConfig, configExists, resolveGraphUri } from '../lib/config.js';
 import type { OpenTologyConfig } from '../lib/config.js';
@@ -588,7 +590,7 @@ async function handleContextStatus(): Promise<unknown> {
 export async function startMcpServer(): Promise<void> {
   const server = new Server(
     { name: 'opentology', version: '0.1.0' },
-    { capabilities: { tools: {}, resources: {} } }
+    { capabilities: { tools: {}, resources: {}, prompts: {} } }
   );
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
@@ -633,6 +635,36 @@ export async function startMcpServer(): Promise<void> {
     }
 
     throw new Error(`Unknown resource: ${uri}`);
+  });
+
+  // --- MCP Prompts (slash commands) ---
+  const promptDefinitions = generateSlashCommands().map((cmd) => ({
+    name: cmd.filename.replace(/\.md$/, ''),
+    description: cmd.content.split('\n')[0],
+    content: cmd.content,
+  }));
+
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: promptDefinitions.map(({ name, description }) => ({
+      name,
+      description,
+    })),
+  }));
+
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const { name } = request.params;
+    const prompt = promptDefinitions.find((p) => p.name === name);
+    if (!prompt) {
+      throw new Error(`Unknown prompt: ${name}`);
+    }
+    return {
+      messages: [
+        {
+          role: 'user' as const,
+          content: { type: 'text' as const, text: prompt.content },
+        },
+      ],
+    };
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
