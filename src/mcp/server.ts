@@ -24,6 +24,7 @@ import { generateContextSection, updateClaudeMd } from '../templates/claude-md-c
 import { generateHookScript } from '../templates/session-start-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import type { ContextLoadOutput } from '../commands/context.js';
+import { scanCodebase } from '../lib/codebase-scanner.js';
 
 export const MAX_TRIPLES_PER_PUSH = 100;
 
@@ -373,6 +374,15 @@ async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
 
   const result: InferenceResult = await materializeInferences(adapter, graphUri);
   return result;
+}
+
+async function handleContextScan(args: Record<string, unknown>): Promise<unknown> {
+  const maxBytes = (args.maxSnapshotBytes as number | undefined) ?? 15360;
+  const snapshot = await scanCodebase(process.cwd(), maxBytes);
+  return {
+    codebaseSnapshot: snapshot,
+    _hint: 'Analyze codebaseSnapshot and push Knowledge triples via opentology_push. Create otx:Project and otx:Knowledge resources in the context graph.',
+  };
 }
 
 async function handleContextInit(args: Record<string, unknown>): Promise<unknown> {
@@ -984,6 +994,19 @@ export async function startMcpServer(): Promise<void> {
           properties: {},
         },
       },
+      {
+        name: 'opentology_context_scan',
+        description: 'Scan the current project codebase and return a structured snapshot (package.json, directory tree, entry points, detected frameworks). Use the snapshot to create Knowledge triples via opentology_push. Can be called independently of context_init.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            maxSnapshotBytes: {
+              type: 'number',
+              description: 'Maximum snapshot payload size in bytes (default: 15360). Truncates and warns if exceeded.',
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -1033,6 +1056,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'opentology_infer':
           result = await handleInfer(args as Record<string, unknown>);
+          break;
+        case 'opentology_context_scan':
+          result = await handleContextScan(args as Record<string, unknown>);
           break;
         case 'opentology_context_init':
           result = await handleContextInit(args as Record<string, unknown>);
