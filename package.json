@@ -49,18 +49,28 @@
     "shacl-engine": "^1.1.0"
   },
   "peerDependencies": {
-    "ts-morph": ">=21.0.0"
+    "ts-morph": ">=21.0.0",
+    "web-tree-sitter": ">=0.24.0",
+    "tree-sitter-wasms": ">=0.1.0"
   },
   "peerDependenciesMeta": {
     "ts-morph": {
+      "optional": true
+    },
+    "web-tree-sitter": {
+      "optional": true
+    },
+    "tree-sitter-wasms": {
       "optional": true
     }
   },
   "devDependencies": {
     "@types/n3": "^1.26.1",
     "@types/node": "^25.5.0",
+    "tree-sitter-wasms": "^0.1.13",
     "ts-morph": "^27.0.2",
     "ts-node": "^10.9.2",
+    "web-tree-sitter": "^0.26.8",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"
   }
