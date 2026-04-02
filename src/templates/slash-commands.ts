@@ -6,7 +6,7 @@ export interface SlashCommand {
 export function generateSlashCommands(): SlashCommand[] {
   return [
     {
-      filename: 'opentology-context-init.md',
+      filename: 'context-init.md',
       content: `Use the opentology_context_init MCP tool to initialize the project context graph.
 
 After initialization, report what was created (graphs, hook script, CLAUDE.md).
@@ -14,7 +14,7 @@ Then show the hook JSON snippet the user needs to add to .claude/settings.json.
 `,
     },
     {
-      filename: 'opentology-context-load.md',
+      filename: 'context-load.md',
       content: `Use the opentology_context_load MCP tool to load the current project context.
 
 Display the results in a readable format:
@@ -22,11 +22,11 @@ Display the results in a readable format:
 - Open issues
 - Recent decisions
 
-If context is not initialized, suggest running /opentology-context-init first.
+If context is not initialized, suggest running /context-init first.
 `,
     },
     {
-      filename: 'opentology-context-save.md',
+      filename: 'context-save.md',
       content: `Save a session summary to the OpenTology sessions graph.
 
 Ask the user what was accomplished in this session, or summarize the conversation so far.
@@ -48,7 +48,7 @@ Push to the sessions graph (use graph name "sessions").
 `,
     },
     {
-      filename: 'opentology-context-status.md',
+      filename: 'context-status.md',
       content: `Use the opentology_context_status MCP tool to check the project context initialization status.
 
 Display the results clearly: whether context is initialized, graph triple counts, hook presence, and CLAUDE.md status.

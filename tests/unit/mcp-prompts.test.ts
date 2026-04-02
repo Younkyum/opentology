@@ -31,9 +31,9 @@ describe('MCP prompts from slash commands', () => {
 
   it('generates expected prompt names', () => {
     const names = commands.map((c) => c.filename.replace(/\.md$/, ''));
-    expect(names).toContain('opentology-context-init');
-    expect(names).toContain('opentology-context-load');
-    expect(names).toContain('opentology-context-save');
-    expect(names).toContain('opentology-context-status');
+    expect(names).toContain('context-init');
+    expect(names).toContain('context-load');
+    expect(names).toContain('context-save');
+    expect(names).toContain('context-status');
   });
 });
