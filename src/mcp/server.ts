@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
+import { generateSlashCommands } from '../templates/slash-commands.js';
 import type { ContextLoadOutput } from '../commands/context.js';
 
 export const MAX_TRIPLES_PER_PUSH = 100;
@@ -424,6 +425,22 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
   } else {
     updateClaudeMd(claudeMdPath, section);
     actions.push('Updated CLAUDE.md context section');
+  }
+
+  // Generate slash commands
+  const commandsDir = join(process.cwd(), '.claude', 'commands');
+  const slashCommands = generateSlashCommands();
+  mkdirSync(commandsDir, { recursive: true });
+  let slashCreated = 0;
+  for (const cmd of slashCommands) {
+    const cmdPath = join(commandsDir, cmd.filename);
+    if (!existsSync(cmdPath) || force) {
+      writeFileSync(cmdPath, cmd.content, 'utf-8');
+      slashCreated++;
+    }
+  }
+  if (slashCreated > 0) {
+    actions.push(`Generated ${slashCreated} slash commands in .claude/commands/`);
   }
 
   saveConfig(config);

@@ -7,6 +7,7 @@ import { createReadyAdapter } from '../lib/store-factory.js';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
+import { generateSlashCommands } from '../templates/slash-commands.js';
 
 export interface ContextLoadOutput {
   projectId: string;
@@ -130,7 +131,25 @@ export function registerContext(program: Command): void {
           }
         }
 
-        // Step 5: Save config LAST (atomic commit point)
+        // Step 5: Generate slash commands
+        const commandsDir = join(process.cwd(), '.claude', 'commands');
+        const slashCommands = generateSlashCommands();
+        let slashCreated = 0;
+        mkdirSync(commandsDir, { recursive: true });
+        for (const cmd of slashCommands) {
+          const cmdPath = join(commandsDir, cmd.filename);
+          if (!existsSync(cmdPath) || opts.force) {
+            writeFileSync(cmdPath, cmd.content, 'utf-8');
+            slashCreated++;
+          }
+        }
+        if (slashCreated > 0) {
+          console.log(pc.green(`  Generated ${slashCreated} slash commands in .claude/commands/`));
+        } else {
+          console.log(pc.dim('  Slash commands already exist — skipped'));
+        }
+
+        // Step 6: Save config LAST (atomic commit point)
         saveConfig(config);
 
         // Print hook registration instructions
