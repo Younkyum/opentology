@@ -14,6 +14,7 @@ import { registerDiff } from './commands/diff.js';
 import { registerGraph } from './commands/graph.js';
 import { registerInfer } from './commands/infer.js';
 import { registerPrefix } from './commands/prefix.js';
+import { registerContext } from './commands/context.js';
 
 const program = new Command();
 program
@@ -35,5 +36,6 @@ registerDiff(program);
 registerGraph(program);
 registerInfer(program);
 registerPrefix(program);
+registerContext(program);
 
 program.parse(process.argv);

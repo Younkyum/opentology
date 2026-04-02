@@ -86,6 +86,11 @@ export class EmbeddedAdapter implements StoreAdapter {
     });
   }
 
+  async askQuery(query: string): Promise<boolean> {
+    const result = this.store.query(query);
+    return result === true;
+  }
+
   async sparqlQuery(query: string): Promise<SparqlResults> {
     const rawResults = this.store.query(query);
 
