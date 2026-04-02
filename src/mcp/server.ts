@@ -387,6 +387,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       maxSymbols: args.maxSymbols as number | undefined,
       timeoutMs: args.timeoutMs as number | undefined,
       includeMethodCalls: args.includeMethodCalls as boolean | undefined,
+      languages: args.languages as string[] | undefined,
     });
 
     if (!scanResult.deepScanAvailable) {
@@ -1064,7 +1065,7 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'opentology_context_scan',
-        description: 'Scan the current project codebase. depth="module" (default) returns a structured snapshot with file-level dependency graph. depth="symbol" (experimental) uses ts-morph to extract class/interface/method-level dependencies and auto-pushes OTX triples to the context graph.',
+        description: 'Scan the current project codebase. depth="module" (default) returns a structured snapshot with file-level dependency graph. depth="symbol" (experimental) extracts class/interface/method-level dependencies and auto-pushes OTX triples to the context graph. Supports TypeScript (ts-morph), Python, Go, Rust, Java, Swift (Tree-sitter).',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -1092,6 +1093,11 @@ export async function startMcpServer(): Promise<void> {
             includeMethodCalls: {
               type: 'boolean',
               description: 'Extract method call relationships when depth="symbol" (default: false, expensive).',
+            },
+            languages: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Languages to scan when depth="symbol" (e.g. ["typescript", "python", "go", "rust", "java", "swift"]). Auto-detects if omitted.',
             },
           },
         },

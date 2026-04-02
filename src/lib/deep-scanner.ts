@@ -1,7 +1,15 @@
 /**
- * Deep scanner — symbol-level codebase analysis using ts-morph.
- * ts-morph is a peerDependency; when absent the scan gracefully degrades.
+ * Deep scanner — language-agnostic orchestrator for symbol-level codebase analysis.
+ * Delegates to LanguageExtractor implementations (ts-morph, tree-sitter, etc.).
  */
+
+import type { LanguageExtractor } from './language-extractor.js';
+import { TypeScriptExtractor } from './deep-scanner-ts.js';
+import { PythonExtractor } from './extractors/python.js';
+import { GoExtractor } from './extractors/go.js';
+import { RustExtractor } from './extractors/rust.js';
+import { JavaExtractor } from './extractors/java.js';
+import { SwiftExtractor } from './extractors/swift.js';
 
 // ── Exported types ──────────────────────────────────────────────
 
@@ -10,6 +18,7 @@ export interface DeepScanOptions {
   maxSymbols?: number;          // default 300
   timeoutMs?: number;           // default 30_000
   includeMethodCalls?: boolean; // default false
+  languages?: string[];         // e.g. ['typescript', 'python'] — auto-detect if omitted
 }
 
 export interface MethodInfo {
@@ -68,181 +77,55 @@ export interface DeepScanUnavailable {
 
 export type DeepScanOutput = DeepScanResult | DeepScanUnavailable;
 
-// ── Dynamic import helper ───────────────────────────────────────
+// ── Extractor registry ─────────────────────────────────────────
 
-type TsMorph = typeof import('ts-morph');
+/** All known extractors. Add new languages here. */
+function getAllExtractors(): LanguageExtractor[] {
+  return [
+    new TypeScriptExtractor(),
+    new PythonExtractor(),
+    new GoExtractor(),
+    new RustExtractor(),
+    new JavaExtractor(),
+    new SwiftExtractor(),
+  ];
+}
 
-async function tryImportTsMorph(): Promise<TsMorph | null> {
+function detectLanguages(rootDir: string, extractors: LanguageExtractor[]): LanguageExtractor[] {
+  // For now, return all available extractors.
+  // Future: scan rootDir for file extensions and filter.
+  return extractors;
+}
+
+// ── File discovery ─────────────────────────────────────────────
+
+async function discoverFiles(
+  rootDir: string,
+  extensions: string[],
+  maxFiles: number,
+): Promise<{ files: string[]; total: number }> {
+  const { execSync } = await import('node:child_process');
+
+  // Use git ls-files if inside a git repo, otherwise fall back to find
+  const extGlob = extensions.map(e => `*${e}`);
+  let stdout: string;
   try {
-    return await import('ts-morph');
+    stdout = execSync(
+      `git -C "${rootDir}" ls-files -- ${extGlob.map(g => `'${g}'`).join(' ')}`,
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 },
+    );
   } catch {
-    return null;
+    // Not a git repo — fall back
+    const patterns = extensions.map(e => `-name '*${e}'`).join(' -o ');
+    stdout = execSync(
+      `find "${rootDir}" -type f \\( ${patterns} \\) -not -path '*/node_modules/*' -not -path '*/dist/*'`,
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 },
+    );
   }
-}
 
-// ── Extractors ──────────────────────────────────────────────────
-
-function qualifiedName(filePath: string, kind: string, name: string): string {
-  return `${filePath}/${kind}/${name}`;
-}
-
-function extractClasses(
-  sourceFile: import('ts-morph').SourceFile,
-  relPath: string,
-): ClassInfo[] {
-  const results: ClassInfo[] = [];
-  for (const cls of sourceFile.getClasses()) {
-    const name = cls.getName();
-    if (!name) continue;
-
-    let baseClass: string | null = null;
-    const baseNode = cls.getBaseClass();
-    if (baseNode) {
-      const baseName = baseNode.getName();
-      if (baseName) {
-        const baseSrc = baseNode.getSourceFile();
-        const baseRel = baseSrc === sourceFile
-          ? relPath
-          : baseSrc.getFilePath().replace(/.*?\/src\//, 'src/').replace(/\.[tj]sx?$/, '');
-        baseClass = qualifiedName(baseRel, 'class', baseName);
-      }
-    }
-
-    const interfaces: string[] = [];
-    for (const impl of cls.getImplements()) {
-      const sym = impl.getExpression().getSymbol();
-      if (sym) {
-        const decls = sym.getDeclarations();
-        if (decls.length > 0) {
-          const decl = decls[0];
-          const declFile = decl.getSourceFile();
-          const declRel = declFile === sourceFile
-            ? relPath
-            : declFile.getFilePath().replace(/.*?\/src\//, 'src/').replace(/\.[tj]sx?$/, '');
-          interfaces.push(qualifiedName(declRel, 'interface', sym.getName()));
-        } else {
-          interfaces.push(sym.getName());
-        }
-      }
-    }
-
-    const methods: MethodInfo[] = [];
-    for (const method of cls.getMethods()) {
-      methods.push({
-        name: method.getName(),
-        returnType: method.getReturnType().getText(method),
-        parameters: method.getParameters().map(p => ({
-          name: p.getName(),
-          type: p.getType().getText(p),
-        })),
-      });
-    }
-
-    results.push({
-      name,
-      filePath: relPath,
-      baseClass,
-      interfaces,
-      methods,
-      isAbstract: cls.isAbstract(),
-    });
-  }
-  return results;
-}
-
-function extractInterfaces(
-  sourceFile: import('ts-morph').SourceFile,
-  relPath: string,
-): InterfaceInfo[] {
-  const results: InterfaceInfo[] = [];
-  for (const iface of sourceFile.getInterfaces()) {
-    const name = iface.getName();
-
-    const extendsArr: string[] = [];
-    for (const ext of iface.getExtends()) {
-      const sym = ext.getExpression().getSymbol();
-      if (sym) extendsArr.push(sym.getName());
-    }
-
-    const methods: Array<{ name: string; returnType: string }> = [];
-    for (const m of iface.getMethods()) {
-      methods.push({
-        name: m.getName(),
-        returnType: m.getReturnType().getText(m),
-      });
-    }
-
-    results.push({ name, filePath: relPath, extends: extendsArr, methods });
-  }
-  return results;
-}
-
-function extractFunctions(
-  sourceFile: import('ts-morph').SourceFile,
-  relPath: string,
-): FunctionInfo[] {
-  const results: FunctionInfo[] = [];
-  for (const fn of sourceFile.getFunctions()) {
-    const name = fn.getName();
-    if (!name) continue;
-    results.push({
-      name,
-      filePath: relPath,
-      returnType: fn.getReturnType().getText(fn),
-      parameters: fn.getParameters().map(p => ({
-        name: p.getName(),
-        type: p.getType().getText(p),
-      })),
-      isExported: fn.isExported(),
-    });
-  }
-  return results;
-}
-
-function extractMethodCalls(
-  sourceFile: import('ts-morph').SourceFile,
-  relPath: string,
-  ts: TsMorph,
-): MethodCallInfo[] {
-  const results: MethodCallInfo[] = [];
-  const SyntaxKind = ts.SyntaxKind;
-
-  for (const cls of sourceFile.getClasses()) {
-    const className = cls.getName();
-    if (!className) continue;
-
-    for (const method of cls.getMethods()) {
-      const callerName = `${className}.${method.getName()}`;
-
-      method.forEachDescendant((node) => {
-        if (node.getKind() === SyntaxKind.CallExpression) {
-          const callExpr = node as import('ts-morph').CallExpression;
-          const expr = callExpr.getExpression();
-          if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
-            const propAccess = expr as import('ts-morph').PropertyAccessExpression;
-            const sym = propAccess.getSymbol();
-            if (sym) {
-              const decls = sym.getDeclarations();
-              if (decls.length > 0) {
-                const decl = decls[0];
-                const parent = decl.getParent();
-                if (parent && 'getName' in parent && typeof parent.getName === 'function') {
-                  const parentName = parent.getName() as string;
-                  if (parentName) {
-                    results.push({
-                      caller: callerName,
-                      callee: `${parentName}.${sym.getName()}`,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-      });
-    }
-  }
-  return results;
+  const allFiles = stdout.trim().split('\n').filter(Boolean)
+    .filter(f => !f.includes('node_modules') && !f.includes('/dist/'));
+  return { files: allFiles.slice(0, maxFiles), total: allFiles.length };
 }
 
 // ── Main entry point ────────────────────────────────────────────
@@ -251,114 +134,119 @@ export async function deepScan(
   rootDir: string,
   options?: DeepScanOptions,
 ): Promise<DeepScanOutput> {
-  const ts = await tryImportTsMorph();
-  if (!ts) {
-    return {
-      deepScanAvailable: false,
-      error: 'ts-morph not installed. Run: npm install ts-morph',
-      fallback: null,
-    };
-  }
-
   const maxFiles = options?.maxFiles ?? 500;
   const maxSymbols = options?.maxSymbols ?? 300;
   const timeoutMs = options?.timeoutMs ?? 30_000;
   const includeMethodCalls = options?.includeMethodCalls ?? false;
+  const requestedLanguages = options?.languages;
 
   const start = Date.now();
-  const warnings: string[] = [];
 
-  // Initialise ts-morph Project
-  const { Project } = ts;
-  let project: InstanceType<typeof Project>;
-  try {
-    project = new Project({
-      tsConfigFilePath: `${rootDir}/tsconfig.json`,
-      skipAddingFilesFromTsConfig: false,
-      skipFileDependencyResolution: true,
-    });
-  } catch {
+  // Resolve extractors
+  let allExtractors = getAllExtractors();
+  if (requestedLanguages) {
+    allExtractors = allExtractors.filter(e => requestedLanguages.includes(e.language));
+  }
+
+  // Check availability
+  const available: LanguageExtractor[] = [];
+  for (const ext of allExtractors) {
+    if (await ext.isAvailable()) {
+      available.push(ext);
+    }
+  }
+
+  if (available.length === 0) {
     return {
       deepScanAvailable: false,
-      error: `Failed to load tsconfig.json from ${rootDir}`,
+      error: requestedLanguages
+        ? `No extractors available for: ${requestedLanguages.join(', ')}. Install required dependencies.`
+        : 'No language extractors available. Install ts-morph for TypeScript support.',
       fallback: null,
     };
   }
 
-  const sourceFiles = project.getSourceFiles()
-    .filter(sf => !sf.getFilePath().includes('node_modules'))
-    .filter(sf => !sf.getFilePath().includes('/dist/'));
+  // Collect all extensions from available extractors
+  const allExtensions = available.flatMap(e => e.extensions);
 
-  if (sourceFiles.length > maxFiles) {
+  // Discover files
+  const { files, total } = await discoverFiles(rootDir, allExtensions, maxFiles);
+
+  if (total > maxFiles) {
     return {
       deepScanAvailable: true,
       classes: [],
       interfaces: [],
       functions: [],
       methodCalls: [],
-      fileCount: sourceFiles.length,
+      fileCount: total,
       symbolCount: 0,
       scanDurationMs: Date.now() - start,
       capped: true,
-      warnings: [`File count ${sourceFiles.length} exceeds maxFiles ${maxFiles}. Scan skipped.`],
+      warnings: [`File count ${total} exceeds maxFiles ${maxFiles}. Scan skipped.`],
     };
   }
 
+  // Group files by extractor
+  const filesByExtractor = new Map<LanguageExtractor, string[]>();
+  for (const ext of available) {
+    filesByExtractor.set(ext, []);
+  }
+  for (const file of files) {
+    for (const ext of available) {
+      if (ext.extensions.some(e => file.endsWith(e))) {
+        filesByExtractor.get(ext)!.push(file);
+        break;
+      }
+    }
+  }
+
+  // Run extractors
   const classes: ClassInfo[] = [];
   const interfaces: InterfaceInfo[] = [];
   const functions: FunctionInfo[] = [];
   const methodCalls: MethodCallInfo[] = [];
-  let symbolCount = 0;
+  const warnings: string[] = [];
   let capped = false;
 
-  for (const sf of sourceFiles) {
-    if (Date.now() - start > timeoutMs) {
+  for (const [extractor, extFiles] of filesByExtractor) {
+    if (extFiles.length === 0) continue;
+    if (capped) break;
+
+    const remainingTime = timeoutMs - (Date.now() - start);
+    if (remainingTime <= 0) {
       capped = true;
-      warnings.push(`Timeout after ${timeoutMs}ms. Returning partial results.`);
+      warnings.push(`Timeout before running ${extractor.language} extractor.`);
       break;
     }
 
-    const fullPath = sf.getFilePath();
-    const relPath = fullPath
-      .replace(rootDir.endsWith('/') ? rootDir : rootDir + '/', '')
-      .replace(/\.[tj]sx?$/, '');
+    const result = await extractor.extract(extFiles, rootDir, {
+      maxSymbols,
+      timeoutMs: remainingTime,
+      includeMethodCalls,
+    });
 
-    try {
-      const cls = extractClasses(sf, relPath);
-      for (const c of cls) {
-        if (symbolCount >= maxSymbols) { capped = true; break; }
-        classes.push(c);
-        symbolCount++;
-        // Count methods as symbols too
-        symbolCount += c.methods.length;
-      }
-      if (capped) break;
-
-      const ifaces = extractInterfaces(sf, relPath);
-      for (const i of ifaces) {
-        if (symbolCount >= maxSymbols) { capped = true; break; }
-        interfaces.push(i);
-        symbolCount++;
-      }
-      if (capped) break;
-
-      const fns = extractFunctions(sf, relPath);
-      for (const f of fns) {
-        if (symbolCount >= maxSymbols) { capped = true; break; }
-        functions.push(f);
-        symbolCount++;
-      }
-      if (capped) break;
-
-      if (includeMethodCalls) {
-        const calls = extractMethodCalls(sf, relPath, ts);
-        methodCalls.push(...calls);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      warnings.push(`Skipped ${relPath}: ${msg}`);
+    // If the only extractor reports a fatal error, propagate as unavailable
+    if (result.fatal && available.length === 1) {
+      return {
+        deepScanAvailable: false,
+        error: result.fatal,
+        fallback: null,
+      };
     }
+
+    classes.push(...result.classes);
+    interfaces.push(...result.interfaces);
+    functions.push(...result.functions);
+    methodCalls.push(...result.methodCalls);
+    warnings.push(...result.warnings);
+    if (result.fatal) warnings.push(`${extractor.language}: ${result.fatal}`);
+    if (result.capped) capped = true;
   }
+
+  const symbolCount = classes.reduce((n, c) => n + 1 + c.methods.length, 0)
+    + interfaces.length
+    + functions.length;
 
   return {
     deepScanAvailable: true,
@@ -366,7 +254,7 @@ export async function deepScan(
     interfaces,
     functions,
     methodCalls,
-    fileCount: sourceFiles.length,
+    fileCount: files.length,
     symbolCount,
     scanDurationMs: Date.now() - start,
     capped,

@@ -22,7 +22,7 @@ graph TB
     end
 
     subgraph MCP["MCP Server"]
-        Tools[11 Tools]
+        Tools[18 Tools]
         Resource["opentology://schema"]
     end
 
@@ -97,7 +97,7 @@ graph LR
 | Docker required | No (embedded mode) | Yes | Yes |
 | RDFS reasoning | Automatic on push | Manual SPARQL CONSTRUCT | Not native |
 | SHACL validation | Built-in | Manual tooling | N/A |
-| AI integration | MCP server with 11 tools | None | Plugin ecosystem |
+| AI integration | MCP server with 18 tools | None | Plugin ecosystem |
 | Query language | SPARQL (auto-prefixed) | SPARQL (raw) | Cypher |
 | Data format | Turtle files | Turtle/N-Triples | Property graph |
 | Project scoping | Automatic named graphs | Manual | Database-level |
@@ -126,7 +126,7 @@ graph LR
 
 **AI Integration**
 
-- MCP server with 11 tools and 1 resource
+- MCP server with 18 tools and 1 resource
 - `opentology://schema` resource auto-loads ontology overview
 - Works with Claude Code, Cursor, and any MCP-compatible client
 
@@ -192,7 +192,7 @@ Add to your MCP client configuration (`.mcp.json`):
 }
 ```
 
-**11 Tools:**
+**18 Tools:**
 
 | Tool | Description |
 |------|-------------|
@@ -207,6 +207,13 @@ Add to your MCP client configuration (`.mcp.json`):
 | `opentology_diff` | Compare local vs graph |
 | `opentology_schema` | Introspect ontology schema |
 | `opentology_infer` | Run RDFS inference |
+| `opentology_graph_list` | List named graphs |
+| `opentology_graph_create` | Create a named graph |
+| `opentology_graph_drop` | Drop a named graph |
+| `opentology_context_init` | Initialize project context graph |
+| `opentology_context_load` | Load project context |
+| `opentology_context_status` | Check context initialization status |
+| `opentology_context_scan` | Scan codebase (module or symbol-level) |
 
 **1 Resource:**
 
@@ -270,6 +277,41 @@ opentology push data.ttl
 opentology shapes
 ```
 
+### Deep Scan (Symbol-Level Analysis)
+
+The `opentology_context_scan` MCP tool supports symbol-level deep scanning that extracts classes, interfaces, functions, and method call relationships from source code, then pushes them as OTX triples to the context graph.
+
+**Supported Languages:**
+
+| Language | Engine | Symbols Extracted |
+|----------|--------|-------------------|
+| TypeScript/JavaScript | ts-morph | class, interface, function, method calls |
+| Python | Tree-sitter | class, ABC/Protocol, function, method calls |
+| Go | Tree-sitter | struct, interface, func, method calls |
+| Rust | Tree-sitter | struct, trait, impl, fn, method calls |
+| Java | Tree-sitter | class, interface, method, method calls |
+| Swift | Tree-sitter | class, struct, protocol, func, method calls |
+
+**Optional Dependencies:**
+
+```bash
+# For TypeScript/JavaScript deep scan
+npm install ts-morph
+
+# For Python/Go/Rust/Java/Swift deep scan
+npm install web-tree-sitter tree-sitter-wasms
+```
+
+**Usage (MCP):**
+
+```json
+{
+  "depth": "symbol",
+  "includeMethodCalls": true,
+  "languages": ["typescript", "python"]
+}
+```
+
 ### Tech Stack
 
 - TypeScript, commander.js, n3.js
@@ -277,11 +319,13 @@ opentology shapes
 - @modelcontextprotocol/sdk for MCP server
 - shacl-engine for SHACL validation
 - picocolors for terminal output
+- ts-morph (optional) for TypeScript symbol analysis
+- web-tree-sitter + tree-sitter-wasms (optional) for multi-language symbol analysis
 
 ### Roadmap
 
 - [x] CLI with 14 commands
-- [x] MCP server with 11 tools and 1 resource
+- [x] MCP server with 18 tools and 1 resource
 - [x] Schema introspection (MCP resource + tool)
 - [x] Complete CRUD (push --replace, drop, delete)
 - [x] SHACL validation (shape constraints on push)
@@ -290,6 +334,7 @@ opentology shapes
 - [x] Prefix management
 - [x] Embedded mode (no Docker required)
 - [x] RDFS reasoning (auto-materialization on push)
+- [x] Multi-language deep scan (TypeScript, Python, Go, Rust, Java, Swift)
 - [ ] OWL reasoning (owl:sameAs, owl:inverseOf)
 - [ ] Remote ontology import
 - [ ] Version control for ontology snapshots
@@ -324,7 +369,7 @@ graph TB
     end
 
     subgraph MCP["MCP Server"]
-        Tools[11 Tools]
+        Tools[18 Tools]
         Resource["opentology://schema"]
     end
 
@@ -399,7 +444,7 @@ graph LR
 | Docker 필수 | 아니오 (임베디드 모드) | 예 | 예 |
 | RDFS 추론 | 푸시 시 자동 | SPARQL CONSTRUCT 수동 작성 | 네이티브 미지원 |
 | SHACL 검증 | 내장 | 별도 도구 필요 | 해당 없음 |
-| AI 연동 | MCP 서버 11개 도구 | 없음 | 플러그인 생태계 |
+| AI 연동 | MCP 서버 18개 도구 | 없음 | 플러그인 생태계 |
 | 쿼리 언어 | SPARQL (접두사 자동 삽입) | SPARQL (수동) | Cypher |
 | 데이터 형식 | Turtle 파일 | Turtle/N-Triples | 속성 그래프 |
 | 프로젝트 구분 | Named Graph 자동 | 수동 관리 | 데이터베이스 단위 |
@@ -428,7 +473,7 @@ graph LR
 
 **AI 연동**
 
-- 11개 도구와 1개 리소스를 제공하는 MCP 서버
+- 18개 도구와 1개 리소스를 제공하는 MCP 서버
 - `opentology://schema` 리소스로 온톨로지 개요 자동 로드
 - Claude Code, Cursor 등 MCP 호환 클라이언트와 연동
 
@@ -494,7 +539,7 @@ MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 }
 ```
 
-**11개 도구:**
+**18개 도구:**
 
 | 도구 | 설명 |
 |------|------|
@@ -509,6 +554,13 @@ MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 | `opentology_diff` | 로컬 파일과 그래프 비교 |
 | `opentology_schema` | 온톨로지 스키마 조회 |
 | `opentology_infer` | RDFS 추론 실행 |
+| `opentology_graph_list` | Named Graph 목록 조회 |
+| `opentology_graph_create` | Named Graph 생성 |
+| `opentology_graph_drop` | Named Graph 삭제 |
+| `opentology_context_init` | 프로젝트 컨텍스트 그래프 초기화 |
+| `opentology_context_load` | 프로젝트 컨텍스트 로드 |
+| `opentology_context_status` | 컨텍스트 초기화 상태 확인 |
+| `opentology_context_scan` | 코드베이스 스캔 (모듈/심볼 수준) |
 
 **1개 리소스:**
 
@@ -572,6 +624,41 @@ opentology push data.ttl
 opentology shapes
 ```
 
+### 딥스캔 (심볼 수준 분석)
+
+`opentology_context_scan` MCP 도구는 소스 코드에서 클래스, 인터페이스, 함수, 메서드 호출 관계를 추출하여 OTX 트리플로 컨텍스트 그래프에 푸시하는 심볼 수준 딥스캔을 지원합니다.
+
+**지원 언어:**
+
+| 언어 | 엔진 | 추출 심볼 |
+|------|------|-----------|
+| TypeScript/JavaScript | ts-morph | class, interface, function, method calls |
+| Python | Tree-sitter | class, ABC/Protocol, function, method calls |
+| Go | Tree-sitter | struct, interface, func, method calls |
+| Rust | Tree-sitter | struct, trait, impl, fn, method calls |
+| Java | Tree-sitter | class, interface, method, method calls |
+| Swift | Tree-sitter | class, struct, protocol, func, method calls |
+
+**선택적 의존성:**
+
+```bash
+# TypeScript/JavaScript 딥스캔
+npm install ts-morph
+
+# Python/Go/Rust/Java/Swift 딥스캔
+npm install web-tree-sitter tree-sitter-wasms
+```
+
+**사용법 (MCP):**
+
+```json
+{
+  "depth": "symbol",
+  "includeMethodCalls": true,
+  "languages": ["typescript", "python"]
+}
+```
+
 ### 기술 스택
 
 - TypeScript, commander.js, n3.js
@@ -579,11 +666,13 @@ opentology shapes
 - @modelcontextprotocol/sdk (MCP 서버)
 - shacl-engine (SHACL 검증)
 - picocolors (터미널 출력)
+- ts-morph (선택) TypeScript 심볼 분석
+- web-tree-sitter + tree-sitter-wasms (선택) 다중 언어 심볼 분석
 
 ### 로드맵
 
 - [x] 14개 CLI 명령어
-- [x] 11개 도구와 1개 리소스를 갖춘 MCP 서버
+- [x] 18개 도구와 1개 리소스를 갖춘 MCP 서버
 - [x] 스키마 조회 (MCP 리소스 + 도구)
 - [x] 완전한 CRUD (push --replace, drop, delete)
 - [x] SHACL 검증 (푸시 시 형상 제약 자동 검증)
@@ -592,6 +681,7 @@ opentology shapes
 - [x] 접두사 관리
 - [x] 임베디드 모드 (Docker 불필요)
 - [x] RDFS 추론 (푸시 시 자동 물질화)
+- [x] 다중 언어 딥스캔 (TypeScript, Python, Go, Rust, Java, Swift)
 - [ ] OWL 추론 (owl:sameAs, owl:inverseOf)
 - [ ] 원격 온톨로지 임포트
 - [ ] 온톨로지 스냅샷 버전 관리
