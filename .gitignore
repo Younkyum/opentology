@@ -4,3 +4,4 @@ dist
 .omc/
 context/
 CLAUDE.md
+.gstack/

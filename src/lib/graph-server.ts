@@ -16,7 +16,7 @@ function html(config: OpenTologyConfig): string {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #ffffff; color: #1f2328; }
-    #app { display: flex; height: 100vh; }
+    #app { display: flex; height: 100vh; overflow: hidden; }
     #sidebar { width: 320px; min-width: 320px; background: #f6f8fa; border-right: 1px solid #d1d9e0; display: flex; flex-direction: column; overflow: hidden; }
     #sidebar h1 { padding: 16px; font-size: 16px; border-bottom: 1px solid #d1d9e0; color: #0550ae; }
     #graph-list { padding: 8px 16px; border-bottom: 1px solid #d1d9e0; }
@@ -35,8 +35,9 @@ function html(config: OpenTologyConfig): string {
     #results-table th { text-align: left; padding: 6px 8px; background: #eef1f5; border-bottom: 2px solid #d1d9e0; color: #0550ae; position: sticky; top: 0; }
     #results-table td { padding: 4px 8px; border-bottom: 1px solid #d1d9e0; word-break: break-all; }
     #results-table tr:hover td { background: #f0f4ff; }
-    #center { flex: 1; display: flex; flex-direction: column; position: relative; }
-    #network { flex: 1; }
+    #center { flex: 1; display: flex; flex-direction: column; position: relative; min-height: 0; overflow: hidden; }
+    #network-wrap { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+    #network { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
     #focus-bar { display: none; padding: 8px 16px; background: #ddf4ff; border-bottom: 1px solid #54aeff; font-size: 13px; color: #0550ae; align-items: center; gap: 8px; }
     #focus-bar button { padding: 4px 12px; background: #0550ae; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
     #focus-bar button:hover { background: #0969da; }
@@ -88,6 +89,7 @@ function html(config: OpenTologyConfig): string {
         <span id="focus-label"></span>
         <button onclick="exitFocus()">Show All</button>
       </div>
+      <div id="network-wrap">
       <div id="network">
         <div class="legend">
           <div class="legend-item"><div class="legend-dot" style="background:#0550ae"></div> Class</div>
@@ -95,6 +97,7 @@ function html(config: OpenTologyConfig): string {
           <div class="legend-item"><div class="legend-dot" style="background:#1a7f37"></div> Property</div>
           <div class="legend-item"><div class="legend-dot" style="background:#ffffff;border:1px solid #d1d9e0"></div> Literal</div>
         </div>
+      </div>
       </div>
     </div>
     <div id="filter-panel">
