@@ -28,6 +28,7 @@ import { generateHookScript } from '../templates/session-start-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import type { ContextLoadOutput } from '../commands/context.js';
 import { scanCodebase } from '../lib/codebase-scanner.js';
+import { startGraphServer } from '../lib/graph-server.js';
 
 export const MAX_TRIPLES_PER_PUSH = 100;
 
@@ -1154,6 +1155,19 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'context_graph',
+        description: 'Start an interactive graph visualization web server. Opens a local web UI where you can explore classes, instances, and relationships visually. Returns the server URL. The server runs until the process exits.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            port: {
+              type: 'number',
+              description: 'Server port (default: auto-assigned)',
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -1219,6 +1233,12 @@ export async function startMcpServer(): Promise<void> {
         case 'visualize':
           result = await handleVisualize(args as Record<string, unknown>);
           break;
+        case 'context_graph': {
+          const port = (args as Record<string, unknown>).port as number | undefined;
+          const srv = await startGraphServer({ port });
+          result = { url: `http://127.0.0.1:${srv.port}`, port: srv.port, message: `Graph server running at http://127.0.0.1:${srv.port}` };
+          break;
+        }
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
