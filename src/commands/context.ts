@@ -402,6 +402,116 @@ export function registerContext(program: Command): void {
       }
     });
 
+  // --- context impact ---
+  context
+    .command('impact')
+    .description('Analyze impact of modifying a file (dependents, dependencies, related context)')
+    .requiredOption('--file <path>', 'Relative file path to analyze')
+    .option('--format <type>', 'Output format: table, json', 'table')
+    .action(async (opts: { file: string; format: string }) => {
+      let config;
+      try {
+        config = loadConfig();
+      } catch {
+        console.error(pc.red('Error: No .opentology.json found. Run `opentology init` first.'));
+        process.exit(1);
+      }
+
+      const graphs = config.graphs ?? {};
+      if (!graphs['context']) {
+        console.error(pc.red('Error: Context not initialized. Run `opentology context init` first.'));
+        process.exit(1);
+      }
+
+      const contextUri = graphs['context'];
+      const OTX = 'https://opentology.dev/vocab#';
+      const moduleUriStr = `urn:module:${opts.file}`;
+
+      try {
+        const adapter = await createReadyAdapter(config);
+
+        // Dependents (reverse deps)
+        const dependentsResult = await adapter.sparqlQuery(`
+          SELECT ?dependent WHERE {
+            GRAPH <${contextUri}> {
+              ?dependent <${OTX}dependsOn> <${moduleUriStr}> .
+            }
+          }`);
+        const dependents = (dependentsResult.results?.bindings ?? []).map(
+          (b: Record<string, { value: string }>) => b.dependent?.value?.replace('urn:module:', '') ?? ''
+        ).filter(Boolean);
+
+        // Dependencies
+        const depsResult = await adapter.sparqlQuery(`
+          SELECT ?dep WHERE {
+            GRAPH <${contextUri}> {
+              <${moduleUriStr}> <${OTX}dependsOn> ?dep .
+            }
+          }`);
+        const dependencies = (depsResult.results?.bindings ?? []).map(
+          (b: Record<string, { value: string }>) => b.dep?.value?.replace('urn:module:', '') ?? ''
+        ).filter(Boolean);
+
+        // Related context entries
+        let related: Array<{ type: string; title: string; status?: string; date?: string }> = [];
+        try {
+          const relatedResult = await adapter.sparqlQuery(`
+            SELECT ?type ?title ?status ?date WHERE {
+              GRAPH <${contextUri}> {
+                ?s <${OTX}body> ?body .
+                ?s a ?type .
+                ?s <${OTX}title> ?title .
+                OPTIONAL { ?s <${OTX}status> ?status }
+                OPTIONAL { ?s <${OTX}date> ?date }
+                FILTER(CONTAINS(?body, "${opts.file}"))
+              }
+            } LIMIT 10`);
+          related = (relatedResult.results?.bindings ?? []).map(
+            (b: Record<string, { value: string }>) => ({
+              type: b.type?.value?.replace(OTX, '') ?? '',
+              title: b.title?.value ?? '',
+              status: b.status?.value,
+              date: b.date?.value,
+            })
+          );
+        } catch {
+          // FILTER/CONTAINS may not be supported
+        }
+
+        const impact = dependents.length === 0 ? 'low' : dependents.length <= 3 ? 'medium' : 'high';
+
+        if (opts.format === 'json') {
+          console.log(JSON.stringify({ filePath: opts.file, dependents, dependencies, related, impact }, null, 2));
+        } else {
+          console.log(pc.bold(`Impact Analysis: ${opts.file}`));
+          console.log(`Impact level: ${impact === 'high' ? pc.red(impact) : impact === 'medium' ? pc.yellow(impact) : pc.green(impact)}`);
+          console.log('');
+          if (dependents.length > 0) {
+            console.log(pc.bold(`Dependents (${dependents.length}):`));
+            for (const d of dependents) console.log(`  ${d}`);
+            console.log('');
+          }
+          if (dependencies.length > 0) {
+            console.log(pc.bold(`Dependencies (${dependencies.length}):`));
+            for (const d of dependencies) console.log(`  ${d}`);
+            console.log('');
+          }
+          if (related.length > 0) {
+            console.log(pc.bold('Related context:'));
+            for (const r of related) {
+              console.log(`  [${r.type}] ${r.title}${r.status ? ` (${r.status})` : ''}`);
+            }
+          }
+          if (dependents.length === 0 && dependencies.length === 0) {
+            console.log(pc.dim('No module dependencies found. Run `opentology context scan` to populate.'));
+          }
+        }
+      } catch (err) {
+        console.error(pc.red(`Error: ${(err as Error).message}`));
+        process.exit(1);
+      }
+    });
+
   // --- context graph ---
   context
     .command('graph')

@@ -25,6 +25,7 @@ import { join } from 'node:path';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
+import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import type { ContextLoadOutput } from '../commands/context.js';
 import { scanCodebase } from '../lib/codebase-scanner.js';
@@ -417,14 +418,44 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
     };
   }
 
-  // Default: module-level scan (existing behavior)
+  // Default: module-level scan — now auto-pushes module triples like context_init
   const maxBytes = (args.maxSnapshotBytes as number | undefined) ?? 15360;
   const snapshot = await scanCodebase(process.cwd(), maxBytes);
+
+  let moduleStats: { modules: number; edges: number } | null = null;
+  try {
+    const config = loadConfig();
+    const contextUri = `${config.graphUri}/context`;
+    const adapter = await createReadyAdapter(config);
+    if (snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0) {
+      const dg = snapshot.dependencyGraph;
+      // Scoped delete: clear stale module triples before re-insert
+      await adapter.sparqlUpdate(
+        `DELETE WHERE { GRAPH <${contextUri}> { ?m a <https://opentology.dev/vocab#Module> . ?m ?p ?o } }`
+      );
+      // Insert fresh triples
+      const sparqlTriples: string[] = [];
+      for (const mod of dg.modules) {
+        sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> .`);
+      }
+      for (const edge of dg.edges) {
+        sparqlTriples.push(`<urn:module:${edge.from}> <https://opentology.dev/vocab#dependsOn> <urn:module:${edge.to}> .`);
+      }
+      await adapter.sparqlUpdate(
+        `INSERT DATA { GRAPH <${contextUri}> {\n${sparqlTriples.join('\n')}\n} }`
+      );
+      moduleStats = { modules: dg.modules.length, edges: dg.edges.length };
+    }
+  } catch {
+    // Non-fatal: module triple push is best-effort
+  }
+
   return {
     codebaseSnapshot: snapshot,
-    _hint: snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0
-      ? 'Analyze codebaseSnapshot and push Knowledge triples via push. Module dependency triples (otx:Module + otx:dependsOn) are available in dependencyGraph — push them to the context graph as-is.'
-      : 'Analyze codebaseSnapshot and push Knowledge triples via push. No dependency graph was auto-extracted (non-JS/TS project or parsing issue). Inspect key source files manually and push otx:Module + otx:dependsOn triples for the important modules you identify.',
+    moduleStats,
+    _hint: moduleStats
+      ? `Module triples auto-pushed: ${moduleStats.modules} modules, ${moduleStats.edges} edges. Query with: SELECT ?m WHERE { ?m a otx:Module }`
+      : 'No dependency graph auto-extracted or push failed. Inspect key source files manually.',
   };
 }
 
@@ -469,6 +500,14 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     mkdirSync(hookDir, { recursive: true });
     writeFileSync(hookPath, generateHookScript(), 'utf-8');
     actions.push('Generated hook: .opentology/hooks/session-start.mjs');
+  }
+
+  // Generate pre-edit hook script
+  const preEditHookPath = join(hookDir, 'pre-edit.mjs');
+  if (!existsSync(preEditHookPath) || force) {
+    mkdirSync(hookDir, { recursive: true });
+    writeFileSync(preEditHookPath, generatePreEditHookScript(), 'utf-8');
+    actions.push('Generated hook: .opentology/hooks/pre-edit.mjs');
   }
 
   // Update CLAUDE.md
@@ -539,6 +578,11 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
         SessionStart: [{
           type: 'command',
           command: 'node .opentology/hooks/session-start.mjs',
+        }],
+        PreToolUse: [{
+          type: 'command',
+          command: 'node .opentology/hooks/pre-edit.mjs',
+          matcher: { tool_name: 'Edit|Write' },
         }],
       },
     },
@@ -636,6 +680,82 @@ async function handleContextLoad(): Promise<ContextLoadOutput> {
 
   if (output.warnings!.length === 0) delete output.warnings;
   return output;
+}
+
+async function handleContextImpact(args: Record<string, unknown>): Promise<unknown> {
+  const filePath = args.filePath as string;
+  if (!filePath) throw new Error('filePath is required');
+
+  const config = loadConfig();
+  const contextUri = `${config.graphUri}/context`;
+  const adapter = await createReadyAdapter(config);
+  const OTX = 'https://opentology.dev/vocab#';
+  const moduleUriStr = `urn:module:${filePath}`;
+
+  // 1. Modules that depend on this file (dependents / reverse deps)
+  const dependentsQuery = `
+    SELECT ?dependent WHERE {
+      GRAPH <${contextUri}> {
+        ?dependent <${OTX}dependsOn> <${moduleUriStr}> .
+      }
+    }`;
+  const dependentsResult = await adapter.sparqlQuery(dependentsQuery);
+  const dependents = (dependentsResult.results?.bindings ?? []).map(
+    (b: Record<string, { value: string }>) => b.dependent?.value?.replace('urn:module:', '') ?? ''
+  ).filter(Boolean);
+
+  // 2. Modules this file depends on (dependencies)
+  const depsQuery = `
+    SELECT ?dep WHERE {
+      GRAPH <${contextUri}> {
+        <${moduleUriStr}> <${OTX}dependsOn> ?dep .
+      }
+    }`;
+  const depsResult = await adapter.sparqlQuery(depsQuery);
+  const dependencies = (depsResult.results?.bindings ?? []).map(
+    (b: Record<string, { value: string }>) => b.dep?.value?.replace('urn:module:', '') ?? ''
+  ).filter(Boolean);
+
+  // 3. Related decisions, issues, knowledge mentioning this file
+  const relatedQuery = `
+    SELECT ?type ?title ?status ?date WHERE {
+      GRAPH <${contextUri}> {
+        ?s <${OTX}body> ?body .
+        ?s a ?type .
+        ?s <${OTX}title> ?title .
+        OPTIONAL { ?s <${OTX}status> ?status }
+        OPTIONAL { ?s <${OTX}date> ?date }
+        FILTER(CONTAINS(?body, "${filePath}"))
+      }
+    } LIMIT 10`;
+  let related: Array<{ type: string; title: string; status?: string; date?: string }> = [];
+  try {
+    const relatedResult = await adapter.sparqlQuery(relatedQuery);
+    related = (relatedResult.results?.bindings ?? []).map(
+      (b: Record<string, { value: string }>) => ({
+        type: b.type?.value?.replace(OTX, '') ?? '',
+        title: b.title?.value ?? '',
+        status: b.status?.value,
+        date: b.date?.value,
+      })
+    );
+  } catch {
+    // FILTER/CONTAINS may not be supported — skip gracefully
+  }
+
+  const hasDeps = dependents.length > 0 || dependencies.length > 0;
+
+  return {
+    filePath,
+    moduleUri: moduleUriStr,
+    dependents,
+    dependencies,
+    related,
+    impact: dependents.length === 0 ? 'low' : dependents.length <= 3 ? 'medium' : 'high',
+    _hint: hasDeps
+      ? `This file has ${dependents.length} dependent(s) and ${dependencies.length} dependency(ies). Review dependents before making breaking changes.`
+      : 'No module dependencies found in the graph. Run context_scan first to populate module triples.',
+  };
 }
 
 async function handleContextStatus(): Promise<unknown> {
@@ -1168,6 +1288,20 @@ export async function startMcpServer(): Promise<void> {
           },
         },
       },
+      {
+        name: 'context_impact',
+        description: 'Analyze the impact of modifying a file. Returns modules that depend on the target, modules it depends on, and related decisions/issues/knowledge from the context graph. Use this BEFORE editing files to understand the blast radius of changes.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'Relative file path to analyze (e.g., "src/lib/store-factory.ts")',
+            },
+          },
+          required: ['filePath'],
+        },
+      },
     ],
   }));
 
@@ -1239,6 +1373,9 @@ export async function startMcpServer(): Promise<void> {
           result = { url: `http://localhost:${srv.port}`, port: srv.port, message: `Graph server running at http://localhost:${srv.port}` };
           break;
         }
+        case 'context_impact':
+          result = await handleContextImpact(args as Record<string, unknown>);
+          break;
         default:
           throw new Error(`Unknown tool: ${name}`);
       }

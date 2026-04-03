@@ -73,8 +73,9 @@ function html(config: OpenTologyConfig): string {
   <div id="app">
     <div id="sidebar">
       <h1>OpenTology — ${projectId}</h1>
-      <div id="graph-list">
-        <select id="graphSelect"><option value="">Loading graphs...</option></select>
+      <div id="graph-list" style="display:flex;gap:6px;align-items:center;">
+        <select id="graphSelect" style="flex:1;"><option value="">Loading graphs...</option></select>
+        <button id="refreshBtn" onclick="refreshAll()" title="Refresh graph data" style="padding:5px 10px;background:#0550ae;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;">&#8635; Refresh</button>
       </div>
       <div class="stats" id="stats"></div>
       <div id="query-box">
@@ -190,6 +191,30 @@ function html(config: OpenTologyConfig): string {
         }
       });
       loadGraph(sel.value);
+    }
+
+    async function refreshAll() {
+      const btn = document.getElementById('refreshBtn');
+      btn.textContent = '\\u21bb ...';
+      btn.disabled = true;
+      try {
+        const gs = await fetch('/api/graphs').then(r => r.json());
+        const sel = document.getElementById('graphSelect');
+        const prev = sel.value;
+        sel.innerHTML = '';
+        for (const g of gs) {
+          sel.innerHTML += '<option value="' + g.uri + '"' + (g.uri === prev ? ' selected' : '') + '>' + g.name + ' (' + g.triples + ')</option>';
+        }
+        try {
+          const schema = await fetch('/api/schema').then(r => r.json());
+          classSet = new Set();
+          (schema.classes || []).forEach(c => classSet.add(c));
+        } catch {}
+        await runQuery();
+      } finally {
+        btn.innerHTML = '&#8635; Refresh';
+        btn.disabled = false;
+      }
     }
 
     async function loadGraph(graphUri) {
