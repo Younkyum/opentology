@@ -17,7 +17,7 @@ function html(config: OpenTologyConfig): string {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #ffffff; color: #1f2328; }
     #app { display: flex; height: 100vh; }
-    #sidebar { width: 320px; background: #f6f8fa; border-right: 1px solid #d1d9e0; display: flex; flex-direction: column; overflow: hidden; }
+    #sidebar { width: 320px; min-width: 320px; background: #f6f8fa; border-right: 1px solid #d1d9e0; display: flex; flex-direction: column; overflow: hidden; }
     #sidebar h1 { padding: 16px; font-size: 16px; border-bottom: 1px solid #d1d9e0; color: #0550ae; }
     #graph-list { padding: 8px 16px; border-bottom: 1px solid #d1d9e0; }
     #graph-list select { width: 100%; padding: 6px 8px; background: #ffffff; color: #1f2328; border: 1px solid #d1d9e0; border-radius: 6px; font-size: 13px; }
@@ -35,8 +35,34 @@ function html(config: OpenTologyConfig): string {
     #results-table th { text-align: left; padding: 6px 8px; background: #eef1f5; border-bottom: 2px solid #d1d9e0; color: #0550ae; position: sticky; top: 0; }
     #results-table td { padding: 4px 8px; border-bottom: 1px solid #d1d9e0; word-break: break-all; }
     #results-table tr:hover td { background: #f0f4ff; }
+    #center { flex: 1; display: flex; flex-direction: column; position: relative; }
     #network { flex: 1; }
-    .legend { position: absolute; bottom: 16px; right: 16px; background: #f6f8faee; padding: 12px 16px; border-radius: 8px; border: 1px solid #d1d9e0; font-size: 12px; color: #1f2328; }
+    #focus-bar { display: none; padding: 8px 16px; background: #ddf4ff; border-bottom: 1px solid #54aeff; font-size: 13px; color: #0550ae; align-items: center; gap: 8px; }
+    #focus-bar button { padding: 4px 12px; background: #0550ae; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    #focus-bar button:hover { background: #0969da; }
+    #filter-panel { width: 280px; min-width: 280px; background: #f6f8fa; border-left: 1px solid #d1d9e0; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-section { border-bottom: 1px solid #d1d9e0; }
+    .panel-header { padding: 10px 16px; font-size: 13px; font-weight: 600; color: #1f2328; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+    .panel-header:hover { background: #eef1f5; }
+    .panel-header .arrow { font-size: 10px; color: #656d76; transition: transform 0.15s; }
+    .panel-header .arrow.collapsed { transform: rotate(-90deg); }
+    .panel-body { padding: 4px 16px 10px; }
+    .panel-body.collapsed { display: none; }
+    .filter-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer; }
+    .filter-item:hover { color: #0550ae; }
+    .filter-item input { margin: 0; cursor: pointer; }
+    .filter-count { color: #656d76; margin-left: auto; font-size: 11px; }
+    .filter-actions { display: flex; gap: 8px; padding: 6px 0 2px; }
+    .filter-actions button { padding: 2px 8px; background: none; border: 1px solid #d1d9e0; border-radius: 4px; cursor: pointer; font-size: 11px; color: #656d76; }
+    .filter-actions button:hover { background: #eef1f5; color: #1f2328; }
+    #search-box { padding: 10px 16px; border-bottom: 1px solid #d1d9e0; }
+    #search-box input { width: 100%; padding: 6px 10px; background: #ffffff; color: #1f2328; border: 1px solid #d1d9e0; border-radius: 6px; font-size: 13px; outline: none; }
+    #search-box input:focus { border-color: #0969da; box-shadow: 0 0 0 3px rgba(9,105,218,0.15); }
+    #search-results { max-height: 200px; overflow-y: auto; padding: 0 16px; }
+    .search-item { padding: 5px 8px; font-size: 12px; cursor: pointer; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .search-item:hover { background: #ddf4ff; color: #0550ae; }
+    .filter-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend { position: absolute; bottom: 16px; left: 16px; background: #f6f8faee; padding: 12px 16px; border-radius: 8px; border: 1px solid #d1d9e0; font-size: 12px; color: #1f2328; }
     .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
     .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
     .stats { padding: 8px 16px; border-bottom: 1px solid #d1d9e0; font-size: 12px; color: #656d76; }
@@ -57,12 +83,32 @@ function html(config: OpenTologyConfig): string {
       <div id="results-table"></div>
       <div id="details"></div>
     </div>
-    <div id="network" style="position: relative;">
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#0550ae"></div> Class</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#cf222e"></div> Instance</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#1a7f37"></div> Property</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#ffffff;border:1px solid #d1d9e0"></div> Literal</div>
+    <div id="center">
+      <div id="focus-bar">
+        <span id="focus-label"></span>
+        <button onclick="exitFocus()">Show All</button>
+      </div>
+      <div id="network">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#0550ae"></div> Class</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#cf222e"></div> Instance</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#1a7f37"></div> Property</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ffffff;border:1px solid #d1d9e0"></div> Literal</div>
+        </div>
+      </div>
+    </div>
+    <div id="filter-panel">
+      <div id="search-box">
+        <input type="text" id="searchInput" placeholder="Search nodes..." oninput="onSearch(this.value)" />
+      </div>
+      <div id="search-results"></div>
+      <div class="panel-section">
+        <div class="panel-header" onclick="toggleSection(this)">Node Types <span class="arrow">&#9660;</span></div>
+        <div class="panel-body" id="nodeTypeFilters"></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-header" onclick="toggleSection(this)">Classes (rdf:type) <span class="arrow">&#9660;</span></div>
+        <div class="panel-body" id="classFilters"></div>
       </div>
     </div>
   </div>
@@ -71,6 +117,7 @@ function html(config: OpenTologyConfig): string {
       class: '#0550ae', instance: '#cf222e', property: '#1a7f37',
       literal: '#ffffff', edge: '#d1d9e0', edgeLabel: '#656d76'
     };
+    const NODE_TYPE_COLORS = { Class: COLORS.class, Instance: COLORS.instance, Property: COLORS.property, Literal: COLORS.literal };
     const PREFIXES = {
       'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
       'http://www.w3.org/2000/01/rdf-schema#': 'rdfs:',
@@ -78,6 +125,7 @@ function html(config: OpenTologyConfig): string {
       'http://www.w3.org/2001/XMLSchema#': 'xsd:',
       'https://opentology.dev/vocab#': 'otx:',
     };
+    const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 
     function shorten(uri) {
       if (!uri) return '';
@@ -92,6 +140,22 @@ function html(config: OpenTologyConfig): string {
     }
 
     let network, nodesDS, edgesDS, classSet = new Set();
+    // Full graph data for filtering
+    let allNodes = new Map(), allEdges = [];
+    // rdf:type map: nodeId -> Set of class URIs
+    let nodeTypeMap = new Map();
+    // Filter state
+    let activeNodeTypes = new Set(['Class', 'Instance', 'Property', 'Literal']);
+    let activeClasses = new Set();
+    let allClasses = new Map(); // classUri -> count
+    let focusNodeId = null;
+
+    function getNodeType(id) {
+      if (id.includes('|')) return 'Literal';
+      if (classSet.has(id)) return 'Class';
+      if (id.startsWith('http://www.w3.org/') || id.startsWith('https://opentology.dev/vocab#')) return 'Property';
+      return 'Instance';
+    }
 
     async function init() {
       const gs = await fetch('/api/graphs').then(r => r.json());
@@ -100,9 +164,8 @@ function html(config: OpenTologyConfig): string {
       for (const g of gs) {
         sel.innerHTML += '<option value="' + g.uri + '">' + g.name + ' (' + g.triples + ')</option>';
       }
-      sel.onchange = () => loadGraph(sel.value);
+      sel.onchange = () => { exitFocus(); loadGraph(sel.value); };
 
-      // Load schema to know which URIs are classes
       try {
         const schema = await fetch('/api/schema').then(r => r.json());
         (schema.classes || []).forEach(c => classSet.add(c));
@@ -117,7 +180,11 @@ function html(config: OpenTologyConfig): string {
         interaction: { hover: true, tooltipDelay: 100 },
       });
       network.on('click', params => {
-        if (params.nodes.length) showNodeDetails(params.nodes[0]);
+        if (params.nodes.length) {
+          const nid = params.nodes[0];
+          showNodeDetails(nid);
+          enterFocus(nid);
+        }
       });
       loadGraph(sel.value);
     }
@@ -139,7 +206,9 @@ function html(config: OpenTologyConfig): string {
       const tableEl = document.getElementById('results-table');
       if (isSPO) {
         tableEl.style.display = 'none';
-        renderGraph(bindings);
+        buildGraphData(bindings);
+        applyFilters();
+        buildFilterPanel();
       } else {
         renderTable(vars, bindings);
         nodesDS.clear(); edgesDS.clear();
@@ -177,42 +246,190 @@ function html(config: OpenTologyConfig): string {
       return COLORS.instance;
     }
 
-    function renderGraph(bindings) {
-      const nodes = new Map();
-      const edges = [];
+    function buildGraphData(bindings) {
+      allNodes = new Map();
+      allEdges = [];
+      nodeTypeMap = new Map();
+      allClasses = new Map();
+
+      // First pass: collect rdf:type relationships
       for (const b of bindings) {
-        const vars = Object.keys(b);
-        if (vars.includes('s') && vars.includes('p') && vars.includes('o')) {
-          const s = b.s, p = b.p, o = b.o;
-          if (!nodes.has(s.value)) {
-            nodes.set(s.value, { id: s.value, label: shorten(s.value), color: nodeColor(s.value), size: 14, title: s.value });
-          }
-          if (o.type === 'uri' || o.type === 'bnode') {
-            if (!nodes.has(o.value)) {
-              nodes.set(o.value, { id: o.value, label: shorten(o.value), color: nodeColor(o.value), size: 12, title: o.value });
-            }
-            edges.push({ from: s.value, to: o.value, label: shorten(p.value), title: p.value });
-          } else {
-            const litId = s.value + '|' + p.value + '|' + o.value;
-            const litLabel = o.value.length > 40 ? o.value.slice(0, 40) + '...' : o.value;
-            if (!nodes.has(litId)) {
-              nodes.set(litId, { id: litId, label: litLabel, color: { background: COLORS.literal, border: '#d1d9e0' }, borderWidth: 1, size: 8, shape: 'box', font: { size: 10, color: '#1f2328' }, title: o.value });
-            }
-            edges.push({ from: s.value, to: litId, label: shorten(p.value), title: p.value });
-          }
+        if (b.p && b.p.value === RDF_TYPE && b.o && (b.o.type === 'uri' || b.o.type === 'bnode')) {
+          if (!nodeTypeMap.has(b.s.value)) nodeTypeMap.set(b.s.value, new Set());
+          nodeTypeMap.get(b.s.value).add(b.o.value);
         }
       }
+
+      // Second pass: build nodes and edges
+      for (const b of bindings) {
+        const ks = Object.keys(b);
+        if (!ks.includes('s') || !ks.includes('p') || !ks.includes('o')) continue;
+        const s = b.s, p = b.p, o = b.o;
+        if (!allNodes.has(s.value)) {
+          allNodes.set(s.value, { id: s.value, label: shorten(s.value), color: nodeColor(s.value), size: 14, title: s.value });
+        }
+        if (o.type === 'uri' || o.type === 'bnode') {
+          if (!allNodes.has(o.value)) {
+            allNodes.set(o.value, { id: o.value, label: shorten(o.value), color: nodeColor(o.value), size: 12, title: o.value });
+          }
+          allEdges.push({ from: s.value, to: o.value, label: shorten(p.value), title: p.value });
+        } else {
+          const litId = s.value + '|' + p.value + '|' + o.value;
+          const litLabel = o.value.length > 40 ? o.value.slice(0, 40) + '...' : o.value;
+          if (!allNodes.has(litId)) {
+            allNodes.set(litId, { id: litId, label: litLabel, color: { background: COLORS.literal, border: '#d1d9e0' }, borderWidth: 1, size: 8, shape: 'box', font: { size: 10, color: '#1f2328' }, title: o.value });
+          }
+          allEdges.push({ from: s.value, to: litId, label: shorten(p.value), title: p.value });
+        }
+      }
+
+      // Build class counts
+      for (const [nodeId, types] of nodeTypeMap) {
+        for (const cls of types) {
+          allClasses.set(cls, (allClasses.get(cls) || 0) + 1);
+        }
+      }
+      activeClasses = new Set(allClasses.keys());
+    }
+
+    function applyFilters() {
+      const visibleNodes = new Set();
+      for (const [id, node] of allNodes) {
+        const ntype = getNodeType(id);
+        if (!activeNodeTypes.has(ntype)) continue;
+        // For instances, check class filter
+        if (ntype === 'Instance' && nodeTypeMap.has(id)) {
+          const types = nodeTypeMap.get(id);
+          let anyActive = false;
+          for (const t of types) { if (activeClasses.has(t)) { anyActive = true; break; } }
+          if (!anyActive) continue;
+        }
+        visibleNodes.add(id);
+      }
+
+      // If focus mode, restrict to neighbors
+      if (focusNodeId && visibleNodes.has(focusNodeId)) {
+        const neighbors = new Set([focusNodeId]);
+        for (const e of allEdges) {
+          if (e.from === focusNodeId && visibleNodes.has(e.to)) neighbors.add(e.to);
+          if (e.to === focusNodeId && visibleNodes.has(e.from)) neighbors.add(e.from);
+        }
+        for (const id of [...visibleNodes]) {
+          if (!neighbors.has(id)) visibleNodes.delete(id);
+        }
+      }
+
+      const filteredEdges = allEdges.filter(e => visibleNodes.has(e.from) && visibleNodes.has(e.to));
+
       nodesDS.clear(); edgesDS.clear();
-      nodesDS.add([...nodes.values()]);
-      edgesDS.add(edges);
+      const nodeArr = [];
+      for (const id of visibleNodes) {
+        const n = { ...allNodes.get(id) };
+        if (focusNodeId === id) { n.size = 22; n.borderWidth = 3; n.color = { background: n.color.background || n.color, border: '#0969da' }; }
+        nodeArr.push(n);
+      }
+      nodesDS.add(nodeArr);
+      edgesDS.add(filteredEdges);
       network.fit();
     }
 
+    function buildFilterPanel() {
+      // Node types
+      const ntEl = document.getElementById('nodeTypeFilters');
+      let ntHtml = '<div class="filter-actions"><button onclick="toggleAll(\\'nodeType\\', true)">All</button><button onclick="toggleAll(\\'nodeType\\', false)">None</button></div>';
+      for (const t of ['Class', 'Instance', 'Property', 'Literal']) {
+        const c = NODE_TYPE_COLORS[t];
+        const bg = t === 'Literal' ? '#ffffff;border:1px solid #d1d9e0' : c;
+        let count = 0;
+        for (const [id] of allNodes) { if (getNodeType(id) === t) count++; }
+        ntHtml += '<label class="filter-item"><input type="checkbox" ' + (activeNodeTypes.has(t) ? 'checked' : '') + ' onchange="toggleNodeType(\\'' + t + '\\', this.checked)"><div class="filter-dot" style="background:' + bg + '"></div>' + t + '<span class="filter-count">' + count + '</span></label>';
+      }
+      ntEl.innerHTML = ntHtml;
+
+      // Classes
+      const clEl = document.getElementById('classFilters');
+      const sorted = [...allClasses.entries()].sort((a, b) => b[1] - a[1]);
+      let clHtml = '<div class="filter-actions"><button onclick="toggleAll(\\'class\\', true)">All</button><button onclick="toggleAll(\\'class\\', false)">None</button></div>';
+      if (!sorted.length) {
+        clHtml += '<div style="color:#656d76;font-size:12px;padding:4px 0">No typed instances</div>';
+      }
+      for (const [cls, count] of sorted) {
+        clHtml += '<label class="filter-item"><input type="checkbox" ' + (activeClasses.has(cls) ? 'checked' : '') + ' onchange="toggleClass(\\'' + cls.replace(/'/g, "\\\\'") + '\\', this.checked)">' + shorten(cls) + '<span class="filter-count">' + count + '</span></label>';
+      }
+      clEl.innerHTML = clHtml;
+    }
+
+    function toggleNodeType(t, on) {
+      if (on) activeNodeTypes.add(t); else activeNodeTypes.delete(t);
+      applyFilters();
+    }
+    function toggleClass(cls, on) {
+      if (on) activeClasses.add(cls); else activeClasses.delete(cls);
+      applyFilters();
+    }
+    function toggleAll(kind, on) {
+      if (kind === 'nodeType') {
+        activeNodeTypes = on ? new Set(['Class', 'Instance', 'Property', 'Literal']) : new Set();
+      } else {
+        activeClasses = on ? new Set(allClasses.keys()) : new Set();
+      }
+      applyFilters();
+      buildFilterPanel();
+    }
+
+    function toggleSection(header) {
+      const body = header.nextElementSibling;
+      const arrow = header.querySelector('.arrow');
+      body.classList.toggle('collapsed');
+      arrow.classList.toggle('collapsed');
+    }
+
+    // Search
+    function onSearch(query) {
+      const el = document.getElementById('search-results');
+      if (!query || query.length < 2) { el.innerHTML = ''; return; }
+      const q = query.toLowerCase();
+      const matches = [];
+      for (const [id, node] of allNodes) {
+        if (node.label.toLowerCase().includes(q) || id.toLowerCase().includes(q)) {
+          matches.push({ id, label: node.label });
+          if (matches.length >= 20) break;
+        }
+      }
+      el.innerHTML = matches.map(m =>
+        '<div class="search-item" onclick="focusNode(\\'' + m.id.replace(/'/g, "\\\\'") + '\\')">' + m.label + '</div>'
+      ).join('');
+    }
+
+    // Focus mode
+    function focusNode(nodeId) {
+      enterFocus(nodeId);
+      showNodeDetails(nodeId);
+      document.getElementById('searchInput').value = '';
+      document.getElementById('search-results').innerHTML = '';
+    }
+
+    function enterFocus(nodeId) {
+      if (!allNodes.has(nodeId)) return;
+      focusNodeId = nodeId;
+      const bar = document.getElementById('focus-bar');
+      document.getElementById('focus-label').textContent = 'Focused: ' + shorten(nodeId);
+      bar.style.display = 'flex';
+      applyFilters();
+    }
+
+    function exitFocus() {
+      focusNodeId = null;
+      document.getElementById('focus-bar').style.display = 'none';
+      applyFilters();
+    }
+
     async function showNodeDetails(nodeId) {
-      const q = 'SELECT ?p ?o WHERE { <' + nodeId + '> ?p ?o }';
+      const cleanId = nodeId.includes('|') ? nodeId.split('|')[0] : nodeId;
+      const q = 'SELECT ?p ?o WHERE { <' + cleanId + '> ?p ?o }';
       const res = await fetch('/api/query?sparql=' + encodeURIComponent(q) + '&raw=true').then(r => r.json());
       const bindings = res.results?.bindings || [];
-      let html = '<h3>' + shorten(nodeId) + '</h3><table>';
+      let html = '<h3>' + shorten(cleanId) + '</h3><table>';
       for (const b of bindings) {
         html += '<tr><td>' + shorten(b.p.value) + '</td><td>' + (b.o.type === 'uri' ? shorten(b.o.value) : b.o.value) + '</td></tr>';
       }
