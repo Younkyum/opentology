@@ -20,7 +20,7 @@ import { discoverShapes, validateWithShacl, hasShapes } from '../lib/shacl.js';
 import { materializeInferences, clearInferences } from '../lib/reasoner.js';
 import { fromSchemaData, toMermaid, toDot } from '../lib/visualizer.js';
 import type { InferenceResult } from '../lib/reasoner.js';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
@@ -28,6 +28,8 @@ import { generateHookScript } from '../templates/session-start-hook.js';
 import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import type { ContextLoadOutput } from '../commands/context.js';
+import { runDoctor } from '../commands/doctor.js';
+import { syncContext } from '../lib/context-sync.js';
 import { scanCodebase } from '../lib/codebase-scanner.js';
 import { startGraphServer } from '../lib/graph-server.js';
 
@@ -539,6 +541,51 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
 
   saveConfig(config);
 
+  // Auto-register hooks in .claude/settings.json (non-interactive, both hooks)
+  const settingsDir = join(process.cwd(), '.claude');
+  const settingsPath = join(settingsDir, 'settings.json');
+  mkdirSync(settingsDir, { recursive: true });
+
+  let settings: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+    } catch { /* start fresh */ }
+  }
+
+  const hooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
+  let hooksChanged = false;
+
+  const sessionStartCmd = 'node .opentology/hooks/session-start.mjs';
+  if (!hooks.SessionStart) hooks.SessionStart = [];
+  const hasSessionHook = hooks.SessionStart.some(
+    (h: unknown) => (h as Record<string, string>).command === sessionStartCmd
+  );
+  if (!hasSessionHook) {
+    hooks.SessionStart.push({ type: 'command', command: sessionStartCmd });
+    hooksChanged = true;
+  }
+
+  const preEditCmd = 'node .opentology/hooks/pre-edit.mjs';
+  if (!hooks.PreToolUse) hooks.PreToolUse = [];
+  const hasPreEditHook = hooks.PreToolUse.some(
+    (h: unknown) => (h as Record<string, string>).command === preEditCmd
+  );
+  if (!hasPreEditHook) {
+    hooks.PreToolUse.push({
+      type: 'command',
+      command: preEditCmd,
+      matcher: { tool_name: 'Edit|Write' },
+    });
+    hooksChanged = true;
+  }
+
+  if (hooksChanged) {
+    settings.hooks = hooks;
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+    actions.push('Auto-registered hooks in .claude/settings.json');
+  }
+
   // Auto-push Module triples from dependency graph
   let moduleStats: { modules: number; edges: number } | null = null;
   try {
@@ -573,19 +620,7 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     actions,
     moduleStats,
     dependencyHint,
-    hookSnippet: {
-      hooks: {
-        SessionStart: [{
-          type: 'command',
-          command: 'node .opentology/hooks/session-start.mjs',
-        }],
-        PreToolUse: [{
-          type: 'command',
-          command: 'node .opentology/hooks/pre-edit.mjs',
-          matcher: { tool_name: 'Edit|Write' },
-        }],
-      },
-    },
+    hooksAutoInstalled: hooksChanged,
   };
 }
 
@@ -1302,6 +1337,22 @@ export async function startMcpServer(): Promise<void> {
           required: ['filePath'],
         },
       },
+      {
+        name: 'context_sync',
+        description: 'Auto-sync context graph: recover missed sessions from git log and rescan module dependency graph. Call this at session start to ensure the graph is up to date. Idempotent — safe to call multiple times.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
+      {
+        name: 'doctor',
+        description: 'Check project health: config, store connectivity, context initialization, hook scripts, Claude Code settings, and optional dependencies. Returns a list of checks with ok/warn/fail status.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
     ],
   }));
 
@@ -1375,6 +1426,12 @@ export async function startMcpServer(): Promise<void> {
         }
         case 'context_impact':
           result = await handleContextImpact(args as Record<string, unknown>);
+          break;
+        case 'context_sync':
+          result = await syncContext(loadConfig(), process.cwd());
+          break;
+        case 'doctor':
+          result = await runDoctor();
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);
