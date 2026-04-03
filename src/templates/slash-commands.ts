@@ -7,7 +7,7 @@ export function generateSlashCommands(): SlashCommand[] {
   return [
     {
       filename: 'context-init.md',
-      content: `Use the opentology_context_init MCP tool to initialize the project context graph.
+      content: `Use the context_init MCP tool to initialize the project context graph.
 
 After initialization:
 1. Report what was created (graphs, hook script, CLAUDE.md, slash commands).
@@ -15,9 +15,9 @@ After initialization:
 
 ## Codebase Analysis
 
-After context_init completes, call opentology_context_scan to get a codebase snapshot.
+After context_init completes, call context_scan to get a codebase snapshot.
 
-Analyze the \`codebaseSnapshot\` field from the response and create Knowledge triples to push via \`opentology_push\`.
+Analyze the \`codebaseSnapshot\` field from the response and create Knowledge triples to push via \`push\`.
 
 ### What to extract:
 - **Project triple** (\`otx:Project\`): name, description, tech stack (\`otx:stack\`), status "active"
@@ -57,7 +57,7 @@ Analyze the \`codebaseSnapshot\` field from the response and create Knowledge tr
     },
     {
       filename: 'context-load.md',
-      content: `Use the opentology_context_load MCP tool to load the current project context.
+      content: `Use the context_load MCP tool to load the current project context.
 
 Display the results in a readable format:
 - Recent sessions with dates and next todos
@@ -73,7 +73,7 @@ If context is not initialized, suggest running /context-init first.
 
 Ask the user what was accomplished in this session, or summarize the conversation so far.
 
-Then use opentology_push to insert a session record:
+Then use push to insert a session record:
 
 \`\`\`turtle
 @prefix otx: <https://opentology.dev/vocab#> .
@@ -91,11 +91,14 @@ Push to the sessions graph (use graph name "sessions").
     },
     {
       filename: 'context-scan.md',
-      content: `Use the opentology_context_scan MCP tool to scan the current project codebase.
+      content: `Before scanning, ask the user which scan depth they want:
 
-The tool returns a structured \`codebaseSnapshot\` containing package.json, directory tree, entry points, detected imports, and README.
+1. **Module scan** (default) — fast, file-level analysis. Returns directory tree, entry points, detected imports, and dependency graph. Good for a quick project overview.
+2. **Deep scan** (symbol) — slower, extracts classes, interfaces, functions, and method calls using ts-morph (TypeScript) or Tree-sitter (Go, Python, Rust, Java, Swift). Auto-pushes symbol triples to the context graph. Use when you need detailed architectural understanding.
 
-Analyze the snapshot and create Knowledge triples to push via \`opentology_push\`:
+Once the user chooses (or accepts the default), call the context_scan MCP tool with the appropriate \`depth\` parameter ("module" or "symbol").
+
+After the scan completes, analyze the results and create Knowledge triples to push via \`push\`:
 - **Project triple** (\`otx:Project\`): name, description, tech stack, status "active"
 - **Knowledge triples** (\`otx:Knowledge\`): architectural patterns, framework choices, build setup, project structure
 
@@ -104,7 +107,7 @@ Push to the **context** graph (use graph name "context"). Keep each push under 1
     },
     {
       filename: 'context-status.md',
-      content: `Use the opentology_context_status MCP tool to check the project context initialization status.
+      content: `Use the context_status MCP tool to check the project context initialization status.
 
 Display the results clearly: whether context is initialized, graph triple counts, hook presence, and CLAUDE.md status.
 `,
