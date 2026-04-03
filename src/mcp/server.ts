@@ -412,7 +412,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       _experimental: true,
       _hint: pushStats
         ? `Symbol triples pushed: ${pushStats.triplesInserted} triples in ${pushStats.batchCount} batches. Query with: SELECT ?c WHERE { ?c a otx:Class ; otx:definedIn <urn:module:...> }`
-        : 'Deep scan completed but triple push failed. Use opentology_push manually with the generated triples.',
+        : 'Deep scan completed but triple push failed. Use push manually with the generated triples.',
     };
   }
 
@@ -422,8 +422,8 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
   return {
     codebaseSnapshot: snapshot,
     _hint: snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0
-      ? 'Analyze codebaseSnapshot and push Knowledge triples via opentology_push. Module dependency triples (otx:Module + otx:dependsOn) are available in dependencyGraph — push them to the context graph as-is.'
-      : 'Analyze codebaseSnapshot and push Knowledge triples via opentology_push. No dependency graph was auto-extracted (non-JS/TS project or parsing issue). Inspect key source files manually and push otx:Module + otx:dependsOn triples for the important modules you identify.',
+      ? 'Analyze codebaseSnapshot and push Knowledge triples via push. Module dependency triples (otx:Module + otx:dependsOn) are available in dependencyGraph — push them to the context graph as-is.'
+      : 'Analyze codebaseSnapshot and push Knowledge triples via push. No dependency graph was auto-extracted (non-JS/TS project or parsing issue). Inspect key source files manually and push otx:Module + otx:dependsOn triples for the important modules you identify.',
   };
 }
 
@@ -548,7 +548,7 @@ async function handleContextLoad(): Promise<ContextLoadOutput> {
   const config = loadConfig();
   const graphs = config.graphs ?? {};
   if (!graphs['context'] || !graphs['sessions']) {
-    throw new Error('Context not initialized. Use opentology_context_init first.');
+    throw new Error('Context not initialized. Use context_init first.');
   }
 
   const contextUri = graphs['context'];
@@ -774,7 +774,7 @@ export async function startMcpServer(): Promise<void> {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
-        name: 'opentology_init',
+        name: 'init',
         description: 'Initialize a new OpenTology project. Creates .opentology.json config with the project ID, SPARQL endpoint, and named graph URI. Must be run before other tools if no config exists.',
         inputSchema: {
           type: 'object' as const,
@@ -797,7 +797,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_validate',
+        name: 'validate',
         description: 'Validate Turtle (RDF) content for syntax correctness. Returns triple count and prefixes if valid, or an error message if invalid. Use before pushing to catch errors early. When shacl is true, also validates against SHACL shapes in shapes/ directory.',
         inputSchema: {
           type: 'object' as const,
@@ -815,7 +815,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_push',
+        name: 'push',
         description: 'Validate and insert Turtle (RDF) triples into the project graph. Validates syntax first, then pushes to the SPARQL endpoint. Auto-validates against SHACL shapes when shapes/ directory exists. Returns success status and triple count. IMPORTANT: Maximum 100 triples per call. For larger datasets, split into multiple pushes of 20-50 triples each.',
         inputSchema: {
           type: 'object' as const,
@@ -838,7 +838,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -849,7 +849,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_query',
+        name: 'query',
         description: 'Execute a SPARQL query against the project graph. Automatically scopes unscoped queries to the project named graph unless raw mode is enabled.',
         inputSchema: {
           type: 'object' as const,
@@ -860,7 +860,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -875,14 +875,14 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_status',
+        name: 'status',
         description: 'Get the current status of the OpenTology project, including project ID, endpoint, graph URI, and the number of triples stored in the graph.',
         inputSchema: {
           type: 'object' as const,
           properties: {
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -892,14 +892,14 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_pull',
+        name: 'pull',
         description: 'Export the entire project graph as Turtle (RDF). Returns all triples from the named graph serialized in Turtle format.',
         inputSchema: {
           type: 'object' as const,
           properties: {
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -909,7 +909,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_schema',
+        name: 'schema',
         description: 'Inspect the ontology schema. Without parameters, returns all classes and properties (same as opentology://schema resource). With a class parameter, returns detailed info: instance count, properties used by that class, and sample triples.',
         inputSchema: {
           type: 'object' as const,
@@ -920,7 +920,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -930,7 +930,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_drop',
+        name: 'drop',
         description: 'Drop (delete) the entire project graph. Requires confirm: true to prevent accidental deletion.',
         inputSchema: {
           type: 'object' as const,
@@ -941,7 +941,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -952,7 +952,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_delete',
+        name: 'delete',
         description: 'Delete specific triples. Provide Turtle content to remove those exact triples, or a SPARQL WHERE pattern for pattern-based deletion.',
         inputSchema: {
           type: 'object' as const,
@@ -967,7 +967,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -977,7 +977,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_diff',
+        name: 'diff',
         description: 'Compare local Turtle content against the remote graph. Returns added triples (in local but not remote), removed triples (in remote but not local), and count of unchanged triples.',
         inputSchema: {
           type: 'object' as const,
@@ -988,7 +988,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -999,7 +999,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_graph_list',
+        name: 'graph_list',
         description: 'List all named graphs for the project. Shows graph name, URI, and triple count.',
         inputSchema: {
           type: 'object' as const,
@@ -1007,7 +1007,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_graph_create',
+        name: 'graph_create',
         description: 'Create a new named graph. Generates a URI based on the project graph URI and registers it in the config.',
         inputSchema: {
           type: 'object' as const,
@@ -1021,7 +1021,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_graph_drop',
+        name: 'graph_drop',
         description: 'Drop a named graph and remove it from config. Requires confirm: true to prevent accidental deletion.',
         inputSchema: {
           type: 'object' as const,
@@ -1039,7 +1039,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_infer',
+        name: 'infer',
         description: 'Run RDFS inference on the project graph, materializing inferred triples into the main graph (so queries work naturally). A bookkeeping copy is kept in the inference graph for status reporting and clear support. With clear: true, removes inferred triples from both graphs.',
         inputSchema: {
           type: 'object' as const,
@@ -1050,7 +1050,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -1060,7 +1060,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_context_init',
+        name: 'context_init',
         description: 'Initialize project context graph for session-based knowledge management. Creates context/sessions named graphs, bootstraps otx ontology vocabulary, generates a Claude Code SessionStart hook script, and updates CLAUDE.md. Idempotent — safe to call multiple times. Use force: true to regenerate hook and CLAUDE.md.',
         inputSchema: {
           type: 'object' as const,
@@ -1073,15 +1073,15 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_context_load',
-        description: 'Load project context: recent sessions (last 3), open issues (up to 10), and recent decisions (last 3) from the context graph. Returns structured JSON. Call this at the start of a session to understand project state. Requires context to be initialized first (opentology_context_init).',
+        name: 'context_load',
+        description: 'Load project context: recent sessions (last 3), open issues (up to 10), and recent decisions (last 3) from the context graph. Returns structured JSON. Call this at the start of a session to understand project state. Requires context to be initialized first (context_init).',
         inputSchema: {
           type: 'object' as const,
           properties: {},
         },
       },
       {
-        name: 'opentology_context_status',
+        name: 'context_status',
         description: 'Check whether project context is initialized. Shows graph triple counts, hook script presence, and CLAUDE.md marker status.',
         inputSchema: {
           type: 'object' as const,
@@ -1089,7 +1089,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_context_scan',
+        name: 'context_scan',
         description: 'Scan the current project codebase. depth="module" (default) returns a structured snapshot with file-level dependency graph. depth="symbol" (experimental) extracts class/interface/method-level dependencies and auto-pushes OTX triples to the context graph. Supports TypeScript (ts-morph), Python, Go, Rust, Java, Swift (Tree-sitter).',
         inputSchema: {
           type: 'object' as const,
@@ -1128,7 +1128,7 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
-        name: 'opentology_visualize',
+        name: 'visualize',
         description: 'Generate a visual diagram of the graph schema. Returns Mermaid or DOT text showing classes, properties, and their relationships (subClassOf, domain/range).',
         inputSchema: {
           type: 'object' as const,
@@ -1145,7 +1145,7 @@ export async function startMcpServer(): Promise<void> {
             },
             graph: {
               type: 'string',
-              description: 'Logical graph name (as created by opentology_graph_create). Resolves to a graph URI via config.',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
             },
             graphUri: {
               type: 'string',
@@ -1162,61 +1162,61 @@ export async function startMcpServer(): Promise<void> {
     try {
       let result: unknown;
       switch (name) {
-        case 'opentology_init':
+        case 'init':
           result = await handleInit(args as Record<string, unknown>);
           break;
-        case 'opentology_validate':
+        case 'validate':
           result = await handleValidate(args as Record<string, unknown>);
           break;
-        case 'opentology_push':
+        case 'push':
           result = await handlePush(args as Record<string, unknown>);
           break;
-        case 'opentology_query':
+        case 'query':
           result = await handleQuery(args as Record<string, unknown>);
           break;
-        case 'opentology_status':
+        case 'status':
           result = await handleStatus(args as Record<string, unknown>);
           break;
-        case 'opentology_pull':
+        case 'pull':
           result = await handlePull(args as Record<string, unknown>);
           break;
-        case 'opentology_schema':
+        case 'schema':
           result = await handleSchema(args as Record<string, unknown>);
           break;
-        case 'opentology_drop':
+        case 'drop':
           result = await handleDrop(args as Record<string, unknown>);
           break;
-        case 'opentology_delete':
+        case 'delete':
           result = await handleDelete(args as Record<string, unknown>);
           break;
-        case 'opentology_diff':
+        case 'diff':
           result = await handleDiff(args as Record<string, unknown>);
           break;
-        case 'opentology_graph_list':
+        case 'graph_list':
           result = await handleGraphList(args as Record<string, unknown>);
           break;
-        case 'opentology_graph_create':
+        case 'graph_create':
           result = await handleGraphCreate(args as Record<string, unknown>);
           break;
-        case 'opentology_graph_drop':
+        case 'graph_drop':
           result = await handleGraphDrop(args as Record<string, unknown>);
           break;
-        case 'opentology_infer':
+        case 'infer':
           result = await handleInfer(args as Record<string, unknown>);
           break;
-        case 'opentology_context_scan':
+        case 'context_scan':
           result = await handleContextScan(args as Record<string, unknown>);
           break;
-        case 'opentology_context_init':
+        case 'context_init':
           result = await handleContextInit(args as Record<string, unknown>);
           break;
-        case 'opentology_context_load':
+        case 'context_load':
           result = await handleContextLoad();
           break;
-        case 'opentology_context_status':
+        case 'context_status':
           result = await handleContextStatus();
           break;
-        case 'opentology_visualize':
+        case 'visualize':
           result = await handleVisualize(args as Record<string, unknown>);
           break;
         default:
