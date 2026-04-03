@@ -22,7 +22,7 @@ graph TB
     end
 
     subgraph MCP["MCP Server"]
-        Tools[20 Tools]
+        Tools[23 Tools]
         Resource["opentology://schema"]
     end
 
@@ -97,7 +97,7 @@ graph LR
 | Docker required | No (embedded mode) | Yes | Yes |
 | RDFS reasoning | Automatic on push | Manual SPARQL CONSTRUCT | Not native |
 | SHACL validation | Built-in | Manual tooling | N/A |
-| AI integration | MCP server with 20 tools | None | Plugin ecosystem |
+| AI integration | MCP server with 23 tools | None | Plugin ecosystem |
 | Query language | SPARQL (auto-prefixed) | SPARQL (raw) | Cypher |
 | Data format | Turtle files | Turtle/N-Triples | Property graph |
 | Project scoping | Automatic named graphs | Manual | Database-level |
@@ -106,7 +106,7 @@ graph LR
 
 **Core**
 
-- 16 CLI commands covering the full RDF lifecycle
+- 18 CLI commands covering the full RDF lifecycle
 - Project-level configuration with `.opentology.json`
 - Named graph scoping -- queries are automatically scoped to your project
 - Two modes: HTTP (Oxigraph server) and embedded (WASM, zero Docker)
@@ -126,7 +126,7 @@ graph LR
 
 **AI Integration**
 
-- MCP server with 20 tools and 1 resource
+- MCP server with 23 tools and 1 resource
 - `opentology://schema` resource auto-loads ontology overview
 - Works with Claude Code, Cursor, and any MCP-compatible client
 
@@ -181,8 +181,9 @@ For embedded mode, no additional setup is needed.
 | `opentology infer` | Run RDFS materialization (`--clear` to remove inferred triples) |
 | `opentology graph` | List, create, or drop named graphs |
 | `opentology prefix` | List, add, or remove project prefixes |
-| `opentology context` | Project context management (`init`, `load`, `status`, `scan`, `graph`) |
+| `opentology context` | Project context management (`init`, `load`, `status`, `scan`, `impact`, `sync`, `graph`) |
 | `opentology viz` | Visualize ontology schema (`schema`) |
+| `opentology doctor` | Check project health (config, store, context, hooks, dependencies) |
 | `opentology mcp` | Start the MCP server |
 
 ### MCP Integration
@@ -200,7 +201,7 @@ Add to your MCP client configuration (`.mcp.json`):
 }
 ```
 
-**20 Tools:**
+**23 Tools:**
 
 | Tool | Description |
 |------|-------------|
@@ -223,7 +224,10 @@ Add to your MCP client configuration (`.mcp.json`):
 | `opentology_context_load` | Load project context |
 | `opentology_context_status` | Check context initialization status |
 | `opentology_context_scan` | Scan codebase (module or symbol-level) |
+| `opentology_context_impact` | Analyze file modification impact (dependents, dependencies, related context) |
+| `opentology_context_sync` | Auto-sync: recover missed sessions from git, rescan module graph |
 | `opentology_context_graph` | Start interactive graph visualization web UI |
+| `opentology_doctor` | Check project health (config, store, hooks, dependencies) |
 
 **1 Resource:**
 
@@ -334,8 +338,8 @@ npm install web-tree-sitter tree-sitter-wasms
 
 ### Roadmap
 
-- [x] CLI with 16 commands
-- [x] MCP server with 20 tools and 1 resource
+- [x] CLI with 18 commands
+- [x] MCP server with 23 tools and 1 resource
 - [x] Schema introspection (MCP resource + tool)
 - [x] Complete CRUD (push --replace, drop, delete)
 - [x] SHACL validation (shape constraints on push)
@@ -379,7 +383,7 @@ graph TB
     end
 
     subgraph MCP["MCP Server"]
-        Tools[20 Tools]
+        Tools[23 Tools]
         Resource["opentology://schema"]
     end
 
@@ -454,7 +458,7 @@ graph LR
 | Docker 필수 | 아니오 (임베디드 모드) | 예 | 예 |
 | RDFS 추론 | 푸시 시 자동 | SPARQL CONSTRUCT 수동 작성 | 네이티브 미지원 |
 | SHACL 검증 | 내장 | 별도 도구 필요 | 해당 없음 |
-| AI 연동 | MCP 서버 20개 도구 | 없음 | 플러그인 생태계 |
+| AI 연동 | MCP 서버 23개 도구 | 없음 | 플러그인 생태계 |
 | 쿼리 언어 | SPARQL (접두사 자동 삽입) | SPARQL (수동) | Cypher |
 | 데이터 형식 | Turtle 파일 | Turtle/N-Triples | 속성 그래프 |
 | 프로젝트 구분 | Named Graph 자동 | 수동 관리 | 데이터베이스 단위 |
@@ -463,7 +467,7 @@ graph LR
 
 **핵심**
 
-- RDF 전체 생애주기를 다루는 16개 CLI 명령어
+- RDF 전체 생애주기를 다루는 18개 CLI 명령어
 - `.opentology.json` 기반 프로젝트 설정
 - Named Graph 자동 스코핑 -- 쿼리가 프로젝트 그래프에 자동 한정
 - HTTP 모드(Oxigraph 서버)와 임베디드 모드(WASM, Docker 불필요) 지원
@@ -483,7 +487,7 @@ graph LR
 
 **AI 연동**
 
-- 20개 도구와 1개 리소스를 제공하는 MCP 서버
+- 23개 도구와 1개 리소스를 제공하는 MCP 서버
 - `opentology://schema` 리소스로 온톨로지 개요 자동 로드
 - Claude Code, Cursor 등 MCP 호환 클라이언트와 연동
 
@@ -538,8 +542,9 @@ docker run -p 7878:7878 ghcr.io/oxigraph/oxigraph \
 | `opentology infer` | RDFS 물질화 실행 (`--clear`로 추론 트리플 제거) |
 | `opentology graph` | Named Graph 목록/생성/삭제 |
 | `opentology prefix` | 프로젝트 접두사 목록/추가/제거 |
-| `opentology context` | 프로젝트 컨텍스트 관리 (`init`, `load`, `status`, `scan`, `graph`) |
+| `opentology context` | 프로젝트 컨텍스트 관리 (`init`, `load`, `status`, `scan`, `impact`, `sync`, `graph`) |
 | `opentology viz` | 온톨로지 스키마 시각화 (`schema`) |
+| `opentology doctor` | 프로젝트 건강 진단 (설정, 스토어, 컨텍스트, 훅, 의존성) |
 | `opentology mcp` | MCP 서버 시작 |
 
 ### MCP 연동
@@ -557,7 +562,7 @@ MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 }
 ```
 
-**20개 도구:**
+**23개 도구:**
 
 | 도구 | 설명 |
 |------|------|
@@ -580,7 +585,10 @@ MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 | `opentology_context_load` | 프로젝트 컨텍스트 로드 |
 | `opentology_context_status` | 컨텍스트 초기화 상태 확인 |
 | `opentology_context_scan` | 코드베이스 스캔 (모듈/심볼 수준) |
+| `opentology_context_impact` | 파일 수정 영향 분석 (의존 모듈, 관련 컨텍스트) |
+| `opentology_context_sync` | 자동 동기화: git에서 누락 세션 복구, 모듈 그래프 재스캔 |
 | `opentology_context_graph` | 인터랙티브 그래프 시각화 웹 UI 시작 |
+| `opentology_doctor` | 프로젝트 건강 진단 (설정, 스토어, 훅, 의존성) |
 
 **1개 리소스:**
 
@@ -691,8 +699,8 @@ npm install web-tree-sitter tree-sitter-wasms
 
 ### 로드맵
 
-- [x] 16개 CLI 명령어
-- [x] 20개 도구와 1개 리소스를 갖춘 MCP 서버
+- [x] 18개 CLI 명령어
+- [x] 23개 도구와 1개 리소스를 갖춘 MCP 서버
 - [x] 스키마 조회 (MCP 리소스 + 도구)
 - [x] 완전한 CRUD (push --replace, drop, delete)
 - [x] SHACL 검증 (푸시 시 형상 제약 자동 검증)

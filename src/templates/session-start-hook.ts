@@ -74,6 +74,26 @@ try {
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) process.exit(0);
 
+  // Step 1: Auto-sync — recover missed sessions and rescan modules
+  let syncSummary = '';
+  try {
+    const syncRaw = run(projectRoot, ['context', 'sync', '--format', 'json']);
+    const syncData = JSON.parse(syncRaw);
+    const parts = [];
+    if (syncData.sessionsRecovered > 0) {
+      parts.push(\`\${syncData.sessionsRecovered} session(s) recovered from git\`);
+    }
+    if (syncData.modulesUpdated) {
+      parts.push(\`modules rescanned (\${syncData.moduleStats?.modules ?? 0} modules)\`);
+    }
+    if (parts.length > 0) {
+      syncSummary = 'Auto-sync: ' + parts.join(', ') + '.';
+    }
+  } catch {
+    // Sync failed — continue with load
+  }
+
+  // Step 2: Load context
   const raw = run(projectRoot, ['context', 'load', '--format', 'json']);
   const data = JSON.parse(raw);
 
@@ -82,8 +102,15 @@ try {
                   (data.recentDecisions?.length > 0);
 
   if (hasData) {
-    console.log(formatOutput(data));
+    const output = formatOutput(data);
+    if (syncSummary) {
+      console.log(syncSummary + '\\n');
+    }
+    console.log(output);
   } else {
+    if (syncSummary) {
+      console.log(syncSummary);
+    }
     console.log(\`OpenTology context active for \${data.projectId}. No session data yet.\`);
   }
 } catch {

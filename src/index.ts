@@ -16,11 +16,12 @@ import { registerInfer } from './commands/infer.js';
 import { registerPrefix } from './commands/prefix.js';
 import { registerContext } from './commands/context.js';
 import { registerViz } from './commands/viz.js';
+import { registerDoctor } from './commands/doctor.js';
 
 const program = new Command();
 program
   .name('opentology')
-  .version('0.1.0')
+  .version('0.2.2')
   .description('CLI-managed RDF/SPARQL infrastructure — Supabase for RDF');
 
 registerInit(program);
@@ -39,5 +40,6 @@ registerInfer(program);
 registerPrefix(program);
 registerContext(program);
 registerViz(program);
+registerDoctor(program);
 
 program.parse(process.argv);

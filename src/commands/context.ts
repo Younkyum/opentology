@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline';
 import { loadConfig, saveConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
 import { startGraphServer } from '../lib/graph-server.js';
+import { syncContext } from '../lib/context-sync.js';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
@@ -567,6 +568,37 @@ export function registerContext(program: Command): void {
           }
           if (dependents.length === 0 && dependencies.length === 0) {
             console.log(pc.dim('No module dependencies found. Run `opentology context scan` to populate.'));
+          }
+        }
+      } catch (err) {
+        console.error(pc.red(`Error: ${(err as Error).message}`));
+        process.exit(1);
+      }
+    });
+
+  // --- context sync ---
+  context
+    .command('sync')
+    .description('Auto-sync context graph: recover missed sessions from git log, rescan module dependencies')
+    .option('--format <type>', 'Output format: table, json', 'table')
+    .action(async (opts: { format: string }) => {
+      let config;
+      try {
+        config = loadConfig();
+      } catch {
+        console.error(pc.red('Error: No .opentology.json found. Run `opentology init` first.'));
+        process.exit(1);
+      }
+
+      try {
+        const result = await syncContext(config, process.cwd());
+
+        if (opts.format === 'json') {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log(pc.bold('Context Sync'));
+          for (const action of result.actions) {
+            console.log(`  ${pc.green('•')} ${action}`);
           }
         }
       } catch (err) {
