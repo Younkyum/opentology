@@ -1,6 +1,6 @@
 # OpenTology
 
-> CLI-managed RDF/SPARQL infrastructure with RDFS reasoning and SHACL validation -- Supabase for knowledge graphs
+> CLI-managed RDF/SPARQL infrastructure with RDFS reasoning, SHACL validation, and interactive graph visualization -- Supabase for knowledge graphs
 
 [English](#english) | [한국어](#한국어)
 
@@ -22,7 +22,7 @@ graph TB
     end
 
     subgraph MCP["MCP Server"]
-        Tools[18 Tools]
+        Tools[20 Tools]
         Resource["opentology://schema"]
     end
 
@@ -42,7 +42,7 @@ graph TB
     Pipeline --> Adapter
 ```
 
-Existing ontology tools have terrible developer experience. OpenTology gives you managed RDF with a simple CLI -- initialize a project, write Turtle, validate with SHACL, push with automatic RDFS inference, and query, all from your terminal. It ships an MCP server so AI assistants can manage your knowledge graph directly. It runs in embedded mode with zero Docker dependency, or connects to an Oxigraph server over HTTP.
+Existing ontology tools have terrible developer experience. OpenTology gives you managed RDF with a simple CLI -- initialize a project, write Turtle, validate with SHACL, push with automatic RDFS inference, query, and visualize your graph in an interactive web UI, all from your terminal. It ships an MCP server so AI assistants can manage your knowledge graph directly. It runs in embedded mode with zero Docker dependency, or connects to an Oxigraph server over HTTP.
 
 ### System Requirements
 
@@ -97,7 +97,7 @@ graph LR
 | Docker required | No (embedded mode) | Yes | Yes |
 | RDFS reasoning | Automatic on push | Manual SPARQL CONSTRUCT | Not native |
 | SHACL validation | Built-in | Manual tooling | N/A |
-| AI integration | MCP server with 18 tools | None | Plugin ecosystem |
+| AI integration | MCP server with 20 tools | None | Plugin ecosystem |
 | Query language | SPARQL (auto-prefixed) | SPARQL (raw) | Cypher |
 | Data format | Turtle files | Turtle/N-Triples | Property graph |
 | Project scoping | Automatic named graphs | Manual | Database-level |
@@ -106,7 +106,7 @@ graph LR
 
 **Core**
 
-- 14 CLI commands covering the full RDF lifecycle
+- 16 CLI commands covering the full RDF lifecycle
 - Project-level configuration with `.opentology.json`
 - Named graph scoping -- queries are automatically scoped to your project
 - Two modes: HTTP (Oxigraph server) and embedded (WASM, zero Docker)
@@ -126,9 +126,15 @@ graph LR
 
 **AI Integration**
 
-- MCP server with 18 tools and 1 resource
+- MCP server with 20 tools and 1 resource
 - `opentology://schema` resource auto-loads ontology overview
 - Works with Claude Code, Cursor, and any MCP-compatible client
+
+**Visualization**
+
+- Interactive graph visualization web UI (`opentology context graph`)
+- Explore classes, instances, and relationships visually with vis-network
+- SPARQL query editor, node filtering, search, and focus mode
 
 ### Two Modes
 
@@ -175,6 +181,8 @@ For embedded mode, no additional setup is needed.
 | `opentology infer` | Run RDFS materialization (`--clear` to remove inferred triples) |
 | `opentology graph` | List, create, or drop named graphs |
 | `opentology prefix` | List, add, or remove project prefixes |
+| `opentology context` | Project context management (`init`, `load`, `status`, `scan`, `graph`) |
+| `opentology viz` | Visualize ontology schema (`schema`) |
 | `opentology mcp` | Start the MCP server |
 
 ### MCP Integration
@@ -192,7 +200,7 @@ Add to your MCP client configuration (`.mcp.json`):
 }
 ```
 
-**18 Tools:**
+**20 Tools:**
 
 | Tool | Description |
 |------|-------------|
@@ -210,10 +218,12 @@ Add to your MCP client configuration (`.mcp.json`):
 | `opentology_graph_list` | List named graphs |
 | `opentology_graph_create` | Create a named graph |
 | `opentology_graph_drop` | Drop a named graph |
+| `opentology_visualize` | Generate schema visualization (Mermaid/DOT) |
 | `opentology_context_init` | Initialize project context graph |
 | `opentology_context_load` | Load project context |
 | `opentology_context_status` | Check context initialization status |
 | `opentology_context_scan` | Scan codebase (module or symbol-level) |
+| `opentology_context_graph` | Start interactive graph visualization web UI |
 
 **1 Resource:**
 
@@ -324,8 +334,8 @@ npm install web-tree-sitter tree-sitter-wasms
 
 ### Roadmap
 
-- [x] CLI with 14 commands
-- [x] MCP server with 18 tools and 1 resource
+- [x] CLI with 16 commands
+- [x] MCP server with 20 tools and 1 resource
 - [x] Schema introspection (MCP resource + tool)
 - [x] Complete CRUD (push --replace, drop, delete)
 - [x] SHACL validation (shape constraints on push)
@@ -338,7 +348,7 @@ npm install web-tree-sitter tree-sitter-wasms
 - [ ] OWL reasoning (owl:sameAs, owl:inverseOf)
 - [ ] Remote ontology import
 - [ ] Version control for ontology snapshots
-- [ ] Web UI for graph exploration
+- [x] Interactive graph visualization web UI
 
 ### Contributing
 
@@ -369,7 +379,7 @@ graph TB
     end
 
     subgraph MCP["MCP Server"]
-        Tools[18 Tools]
+        Tools[20 Tools]
         Resource["opentology://schema"]
     end
 
@@ -389,7 +399,7 @@ graph TB
     Pipeline --> Adapter
 ```
 
-온톨로지 도구들은 개발자 경험이 열악합니다. OpenTology는 터미널에서 RDF의 전체 생애주기를 관리합니다. 프로젝트 초기화, Turtle 작성, SHACL 검증, RDFS 추론이 포함된 푸시, SPARQL 쿼리까지 CLI 하나로 처리합니다. MCP 서버를 내장하고 있어 AI 어시스턴트가 지식 그래프를 직접 다룰 수 있고, Docker 없이 임베디드 모드로 바로 시작할 수 있습니다.
+온톨로지 도구들은 개발자 경험이 열악합니다. OpenTology는 터미널에서 RDF의 전체 생애주기를 관리합니다. 프로젝트 초기화, Turtle 작성, SHACL 검증, RDFS 추론이 포함된 푸시, SPARQL 쿼리, 인터랙티브 그래프 시각화까지 CLI 하나로 처리합니다. MCP 서버를 내장하고 있어 AI 어시스턴트가 지식 그래프를 직접 다룰 수 있고, Docker 없이 임베디드 모드로 바로 시작할 수 있습니다.
 
 ### 시스템 요구사항
 
@@ -444,7 +454,7 @@ graph LR
 | Docker 필수 | 아니오 (임베디드 모드) | 예 | 예 |
 | RDFS 추론 | 푸시 시 자동 | SPARQL CONSTRUCT 수동 작성 | 네이티브 미지원 |
 | SHACL 검증 | 내장 | 별도 도구 필요 | 해당 없음 |
-| AI 연동 | MCP 서버 18개 도구 | 없음 | 플러그인 생태계 |
+| AI 연동 | MCP 서버 20개 도구 | 없음 | 플러그인 생태계 |
 | 쿼리 언어 | SPARQL (접두사 자동 삽입) | SPARQL (수동) | Cypher |
 | 데이터 형식 | Turtle 파일 | Turtle/N-Triples | 속성 그래프 |
 | 프로젝트 구분 | Named Graph 자동 | 수동 관리 | 데이터베이스 단위 |
@@ -453,7 +463,7 @@ graph LR
 
 **핵심**
 
-- RDF 전체 생애주기를 다루는 14개 CLI 명령어
+- RDF 전체 생애주기를 다루는 16개 CLI 명령어
 - `.opentology.json` 기반 프로젝트 설정
 - Named Graph 자동 스코핑 -- 쿼리가 프로젝트 그래프에 자동 한정
 - HTTP 모드(Oxigraph 서버)와 임베디드 모드(WASM, Docker 불필요) 지원
@@ -473,9 +483,15 @@ graph LR
 
 **AI 연동**
 
-- 18개 도구와 1개 리소스를 제공하는 MCP 서버
+- 20개 도구와 1개 리소스를 제공하는 MCP 서버
 - `opentology://schema` 리소스로 온톨로지 개요 자동 로드
 - Claude Code, Cursor 등 MCP 호환 클라이언트와 연동
+
+**시각화**
+
+- 인터랙티브 그래프 시각화 웹 UI (`opentology context graph`)
+- vis-network로 클래스, 인스턴스, 관계를 시각적으로 탐색
+- SPARQL 쿼리 편집기, 노드 필터링, 검색, 포커스 모드
 
 ### 두 가지 모드
 
@@ -522,6 +538,8 @@ docker run -p 7878:7878 ghcr.io/oxigraph/oxigraph \
 | `opentology infer` | RDFS 물질화 실행 (`--clear`로 추론 트리플 제거) |
 | `opentology graph` | Named Graph 목록/생성/삭제 |
 | `opentology prefix` | 프로젝트 접두사 목록/추가/제거 |
+| `opentology context` | 프로젝트 컨텍스트 관리 (`init`, `load`, `status`, `scan`, `graph`) |
+| `opentology viz` | 온톨로지 스키마 시각화 (`schema`) |
 | `opentology mcp` | MCP 서버 시작 |
 
 ### MCP 연동
@@ -539,7 +557,7 @@ MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 }
 ```
 
-**18개 도구:**
+**20개 도구:**
 
 | 도구 | 설명 |
 |------|------|
@@ -557,10 +575,12 @@ MCP 클라이언트 설정 파일(`.mcp.json`)에 추가:
 | `opentology_graph_list` | Named Graph 목록 조회 |
 | `opentology_graph_create` | Named Graph 생성 |
 | `opentology_graph_drop` | Named Graph 삭제 |
+| `opentology_visualize` | 스키마 시각화 생성 (Mermaid/DOT) |
 | `opentology_context_init` | 프로젝트 컨텍스트 그래프 초기화 |
 | `opentology_context_load` | 프로젝트 컨텍스트 로드 |
 | `opentology_context_status` | 컨텍스트 초기화 상태 확인 |
 | `opentology_context_scan` | 코드베이스 스캔 (모듈/심볼 수준) |
+| `opentology_context_graph` | 인터랙티브 그래프 시각화 웹 UI 시작 |
 
 **1개 리소스:**
 
@@ -671,8 +691,8 @@ npm install web-tree-sitter tree-sitter-wasms
 
 ### 로드맵
 
-- [x] 14개 CLI 명령어
-- [x] 18개 도구와 1개 리소스를 갖춘 MCP 서버
+- [x] 16개 CLI 명령어
+- [x] 20개 도구와 1개 리소스를 갖춘 MCP 서버
 - [x] 스키마 조회 (MCP 리소스 + 도구)
 - [x] 완전한 CRUD (push --replace, drop, delete)
 - [x] SHACL 검증 (푸시 시 형상 제약 자동 검증)
@@ -685,7 +705,7 @@ npm install web-tree-sitter tree-sitter-wasms
 - [ ] OWL 추론 (owl:sameAs, owl:inverseOf)
 - [ ] 원격 온톨로지 임포트
 - [ ] 온톨로지 스냅샷 버전 관리
-- [ ] 그래프 탐색 웹 UI
+- [x] 인터랙티브 그래프 시각화 웹 UI
 
 ### 기여 방법
 
