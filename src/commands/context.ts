@@ -1,14 +1,26 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
-import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 import { loadConfig, saveConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
 import { startGraphServer } from '../lib/graph-server.js';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
+import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
+
+function ask(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase());
+    });
+  });
+}
 
 export interface ContextLoadOutput {
   projectId: string;
@@ -109,6 +121,16 @@ export function registerContext(program: Command): void {
           console.log(pc.dim('  Hook script already exists — skipped (use --force to regenerate)'));
         }
 
+        // Step 3b: Write pre-edit hook script
+        const preEditHookPath = join(hookDir, 'pre-edit.mjs');
+        if (!existsSync(preEditHookPath) || opts.force) {
+          mkdirSync(hookDir, { recursive: true });
+          writeFileSync(preEditHookPath, generatePreEditHookScript(), 'utf-8');
+          console.log(pc.green(`  Generated hook script: .opentology/hooks/pre-edit.mjs`));
+        } else {
+          console.log(pc.dim('  Pre-edit hook already exists — skipped'));
+        }
+
         // Step 4: Update CLAUDE.md
         const claudeMdPath = join(process.cwd(), 'CLAUDE.md');
         const section = generateContextSection(config.projectId, config.graphUri);
@@ -164,18 +186,59 @@ export function registerContext(program: Command): void {
         // Step 6: Save config LAST (atomic commit point)
         saveConfig(config);
 
-        // Print hook registration instructions
+        // Step 7: Register hooks in .claude/settings.json
+        const settingsDir = join(process.cwd(), '.claude');
+        const settingsPath = join(settingsDir, 'settings.json');
+        mkdirSync(settingsDir, { recursive: true });
+
+        let settings: Record<string, unknown> = {};
+        if (existsSync(settingsPath)) {
+          try {
+            settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+          } catch { /* start fresh */ }
+        }
+
+        const hooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
+
+        // Always register SessionStart hook
+        const sessionStartCmd = 'node .opentology/hooks/session-start.mjs';
+        if (!hooks.SessionStart) hooks.SessionStart = [];
+        const hasSessionHook = hooks.SessionStart.some(
+          (h: unknown) => (h as Record<string, string>).command === sessionStartCmd
+        );
+        if (!hasSessionHook) {
+          hooks.SessionStart.push({ type: 'command', command: sessionStartCmd });
+          console.log(pc.green('  Registered SessionStart hook in .claude/settings.json'));
+        }
+
+        // Ask about PreToolUse impact hook
         console.log('');
-        console.log(pc.bold('Add this to your project .claude/settings.json:'));
-        console.log('');
-        console.log(JSON.stringify({
-          hooks: {
-            SessionStart: [{
+        const enableImpact = await ask(
+          pc.bold('Enable PreToolUse impact analysis hook? ') +
+          pc.dim('(auto-shows dependents before Edit/Write)') +
+          ' [Y/n] '
+        );
+
+        if (enableImpact !== 'n' && enableImpact !== 'no') {
+          const preEditCmd = 'node .opentology/hooks/pre-edit.mjs';
+          if (!hooks.PreToolUse) hooks.PreToolUse = [];
+          const hasPreEditHook = hooks.PreToolUse.some(
+            (h: unknown) => (h as Record<string, string>).command === preEditCmd
+          );
+          if (!hasPreEditHook) {
+            hooks.PreToolUse.push({
               type: 'command',
-              command: 'node .opentology/hooks/session-start.mjs',
-            }],
-          },
-        }, null, 2));
+              command: preEditCmd,
+              matcher: { tool_name: 'Edit|Write' },
+            });
+          }
+          console.log(pc.green('  Registered PreToolUse impact hook in .claude/settings.json'));
+        } else {
+          console.log(pc.dim('  Skipped PreToolUse hook registration'));
+        }
+
+        settings.hooks = hooks;
+        writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
         console.log('');
         console.log(pc.dim('Consider adding .opentology/hooks/ to version control so team members share the hook.'));
 
