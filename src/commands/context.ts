@@ -424,7 +424,7 @@ export function registerContext(program: Command): void {
 
       try {
         const { port } = await startGraphServer({ port: opts.port });
-        const url = `http://127.0.0.1:${port}`;
+        const url = `http://localhost:${port}`;
         console.log(pc.green(`Graph server running at ${url}`));
 
         // Open browser

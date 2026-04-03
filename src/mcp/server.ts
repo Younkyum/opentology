@@ -1236,7 +1236,7 @@ export async function startMcpServer(): Promise<void> {
         case 'context_graph': {
           const port = (args as Record<string, unknown>).port as number | undefined;
           const srv = await startGraphServer({ port });
-          result = { url: `http://127.0.0.1:${srv.port}`, port: srv.port, message: `Graph server running at http://127.0.0.1:${srv.port}` };
+          result = { url: `http://localhost:${srv.port}`, port: srv.port, message: `Graph server running at http://localhost:${srv.port}` };
           break;
         }
         default:

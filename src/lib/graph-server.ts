@@ -15,26 +15,31 @@ function html(config: OpenTologyConfig): string {
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #ffffff; color: #1f2328; }
     #app { display: flex; height: 100vh; }
-    #sidebar { width: 320px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
-    #sidebar h1 { padding: 16px; font-size: 16px; border-bottom: 1px solid #30363d; color: #58a6ff; }
-    #graph-list { padding: 8px 16px; border-bottom: 1px solid #30363d; }
-    #graph-list select { width: 100%; padding: 6px 8px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-size: 13px; }
-    #query-box { padding: 12px 16px; border-bottom: 1px solid #30363d; }
-    #query-box textarea { width: 100%; height: 80px; padding: 8px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; resize: vertical; }
-    #query-box button { margin-top: 8px; padding: 6px 16px; background: #238636; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    #query-box button:hover { background: #2ea043; }
+    #sidebar { width: 320px; background: #f6f8fa; border-right: 1px solid #d1d9e0; display: flex; flex-direction: column; overflow: hidden; }
+    #sidebar h1 { padding: 16px; font-size: 16px; border-bottom: 1px solid #d1d9e0; color: #0550ae; }
+    #graph-list { padding: 8px 16px; border-bottom: 1px solid #d1d9e0; }
+    #graph-list select { width: 100%; padding: 6px 8px; background: #ffffff; color: #1f2328; border: 1px solid #d1d9e0; border-radius: 6px; font-size: 13px; }
+    #query-box { padding: 12px 16px; border-bottom: 1px solid #d1d9e0; }
+    #query-box textarea { width: 100%; height: 80px; padding: 8px; background: #ffffff; color: #1f2328; border: 1px solid #d1d9e0; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; resize: vertical; }
+    #query-box button { margin-top: 8px; padding: 6px 16px; background: #1a7f37; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    #query-box button:hover { background: #218739; }
     #details { flex: 1; overflow-y: auto; padding: 12px 16px; font-size: 13px; }
-    #details h3 { color: #58a6ff; margin-bottom: 8px; }
+    #details h3 { color: #0550ae; margin-bottom: 8px; }
     #details table { width: 100%; border-collapse: collapse; }
-    #details td { padding: 4px 6px; border-bottom: 1px solid #21262d; word-break: break-all; }
-    #details td:first-child { color: #8b949e; width: 90px; }
+    #details td { padding: 4px 6px; border-bottom: 1px solid #d1d9e0; word-break: break-all; }
+    #details td:first-child { color: #656d76; width: 90px; }
+    #results-table { display: none; padding: 12px 16px; overflow: auto; max-height: 300px; border-bottom: 1px solid #d1d9e0; }
+    #results-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #results-table th { text-align: left; padding: 6px 8px; background: #eef1f5; border-bottom: 2px solid #d1d9e0; color: #0550ae; position: sticky; top: 0; }
+    #results-table td { padding: 4px 8px; border-bottom: 1px solid #d1d9e0; word-break: break-all; }
+    #results-table tr:hover td { background: #f0f4ff; }
     #network { flex: 1; }
-    .legend { position: absolute; bottom: 16px; right: 16px; background: #161b22ee; padding: 12px 16px; border-radius: 8px; border: 1px solid #30363d; font-size: 12px; }
+    .legend { position: absolute; bottom: 16px; right: 16px; background: #f6f8faee; padding: 12px 16px; border-radius: 8px; border: 1px solid #d1d9e0; font-size: 12px; color: #1f2328; }
     .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
     .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .stats { padding: 8px 16px; border-bottom: 1px solid #30363d; font-size: 12px; color: #8b949e; }
+    .stats { padding: 8px 16px; border-bottom: 1px solid #d1d9e0; font-size: 12px; color: #656d76; }
   </style>
 </head>
 <body>
@@ -49,21 +54,22 @@ function html(config: OpenTologyConfig): string {
         <textarea id="sparql" placeholder="SPARQL query...">SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 100</textarea>
         <button onclick="runQuery()">Run Query</button>
       </div>
+      <div id="results-table"></div>
       <div id="details"></div>
     </div>
     <div id="network" style="position: relative;">
       <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div> Class</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#f78166"></div> Instance</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#7ee787"></div> Property</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#d2a8ff"></div> Literal</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#0550ae"></div> Class</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#cf222e"></div> Instance</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1a7f37"></div> Property</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffffff;border:1px solid #d1d9e0"></div> Literal</div>
       </div>
     </div>
   </div>
   <script>
     const COLORS = {
-      class: '#58a6ff', instance: '#f78166', property: '#7ee787',
-      literal: '#d2a8ff', edge: '#30363d', edgeLabel: '#8b949e'
+      class: '#0550ae', instance: '#cf222e', property: '#1a7f37',
+      literal: '#ffffff', edge: '#d1d9e0', edgeLabel: '#656d76'
     };
     const PREFIXES = {
       'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
@@ -90,7 +96,7 @@ function html(config: OpenTologyConfig): string {
     async function init() {
       const gs = await fetch('/api/graphs').then(r => r.json());
       const sel = document.getElementById('graphSelect');
-      sel.innerHTML = '<option value="">All graphs</option>';
+      sel.innerHTML = '';
       for (const g of gs) {
         sel.innerHTML += '<option value="' + g.uri + '">' + g.name + ' (' + g.triples + ')</option>';
       }
@@ -106,14 +112,14 @@ function html(config: OpenTologyConfig): string {
       edgesDS = new vis.DataSet();
       network = new vis.Network(document.getElementById('network'), { nodes: nodesDS, edges: edgesDS }, {
         physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, springLength: 120 } },
-        nodes: { shape: 'dot', font: { color: '#c9d1d9', size: 12 }, borderWidth: 0 },
-        edges: { arrows: 'to', color: { color: COLORS.edge, highlight: '#58a6ff' }, font: { color: COLORS.edgeLabel, size: 10, strokeWidth: 0 }, smooth: { type: 'curvedCW', roundness: 0.15 } },
+        nodes: { shape: 'dot', font: { color: '#1f2328', size: 12 }, borderWidth: 0 },
+        edges: { arrows: 'to', color: { color: COLORS.edge, highlight: '#0550ae' }, font: { color: COLORS.edgeLabel, size: 10, strokeWidth: 0 }, smooth: { type: 'curvedCW', roundness: 0.15 } },
         interaction: { hover: true, tooltipDelay: 100 },
       });
       network.on('click', params => {
         if (params.nodes.length) showNodeDetails(params.nodes[0]);
       });
-      loadGraph('');
+      loadGraph(sel.value);
     }
 
     async function loadGraph(graphUri) {
@@ -128,8 +134,41 @@ function html(config: OpenTologyConfig): string {
       const sparql = document.getElementById('sparql').value;
       const res = await fetch('/api/query?sparql=' + encodeURIComponent(sparql) + '&raw=true').then(r => r.json());
       const bindings = res.results?.bindings || [];
-      renderGraph(bindings);
+      const vars = res.head?.vars || [];
+      const isSPO = vars.includes('s') && vars.includes('p') && vars.includes('o');
+      const tableEl = document.getElementById('results-table');
+      if (isSPO) {
+        tableEl.style.display = 'none';
+        renderGraph(bindings);
+      } else {
+        renderTable(vars, bindings);
+        nodesDS.clear(); edgesDS.clear();
+      }
       document.getElementById('stats').textContent = bindings.length + ' results';
+    }
+
+    function renderTable(vars, bindings) {
+      const tableEl = document.getElementById('results-table');
+      if (!bindings.length) {
+        tableEl.style.display = 'block';
+        tableEl.innerHTML = '<p style="color:#656d76">No results</p>';
+        return;
+      }
+      let h = '<table><thead><tr>';
+      for (const v of vars) h += '<th>' + v + '</th>';
+      h += '</tr></thead><tbody>';
+      for (const b of bindings) {
+        h += '<tr>';
+        for (const v of vars) {
+          const cell = b[v];
+          const val = cell ? (cell.type === 'uri' ? shorten(cell.value) : cell.value) : '';
+          h += '<td>' + val + '</td>';
+        }
+        h += '</tr>';
+      }
+      h += '</tbody></table>';
+      tableEl.style.display = 'block';
+      tableEl.innerHTML = h;
     }
 
     function nodeColor(uri) {
@@ -157,7 +196,7 @@ function html(config: OpenTologyConfig): string {
             const litId = s.value + '|' + p.value + '|' + o.value;
             const litLabel = o.value.length > 40 ? o.value.slice(0, 40) + '...' : o.value;
             if (!nodes.has(litId)) {
-              nodes.set(litId, { id: litId, label: litLabel, color: COLORS.literal, size: 8, shape: 'box', font: { size: 10, color: '#d2a8ff' }, title: o.value });
+              nodes.set(litId, { id: litId, label: litLabel, color: { background: COLORS.literal, border: '#d1d9e0' }, borderWidth: 1, size: 8, shape: 'box', font: { size: 10, color: '#1f2328' }, title: o.value });
             }
             edges.push({ from: s.value, to: litId, label: shorten(p.value), title: p.value });
           }
