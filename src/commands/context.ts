@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync } from 'n
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
+import { startGraphServer } from '../lib/graph-server.js';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
@@ -398,6 +399,43 @@ export function registerContext(program: Command): void {
         const content = readFileSync(claudeMdPath, 'utf-8');
         const hasMarkers = content.includes('OPENTOLOGY:CONTEXT:BEGIN');
         console.log('CLAUDE.md:   ' + (hasMarkers ? pc.green('markers present') : pc.yellow('markers missing')));
+      }
+    });
+
+  // --- context graph ---
+  context
+    .command('graph')
+    .description('Open interactive graph visualization in the browser')
+    .option('--port <number>', 'Server port (default: auto)', parseInt)
+    .action(async (opts: { port?: number }) => {
+      let config;
+      try {
+        config = loadConfig();
+      } catch {
+        console.error(pc.red('Error: No .opentology.json found. Run `opentology init` first.'));
+        process.exit(1);
+      }
+
+      const graphs = config.graphs ?? {};
+      if (!graphs['context']) {
+        console.error(pc.red('Error: Context not initialized. Run `opentology context init` first.'));
+        process.exit(1);
+      }
+
+      try {
+        const { port } = await startGraphServer({ port: opts.port });
+        const url = `http://127.0.0.1:${port}`;
+        console.log(pc.green(`Graph server running at ${url}`));
+
+        // Open browser
+        const { exec } = await import('node:child_process');
+        const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+        exec(`${cmd} ${url}`);
+
+        console.log(pc.dim('Press Ctrl+C to stop the server.'));
+      } catch (err) {
+        console.error(pc.red(`Error: ${(err as Error).message}`));
+        process.exit(1);
       }
     });
 }
