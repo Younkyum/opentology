@@ -70,6 +70,42 @@ SELECT ?title ?date WHERE {
 } ORDER BY DESC(?date)
 \`\`\`
 
+### How to Use OpenTology Tools
+
+OpenTology provides MCP tools to query and manage the project knowledge graph. Use them proactively.
+
+#### Pre-Edit Impact Check
+
+Before modifying a file, run \`context_impact\` with the target file path to understand the blast radius:
+- **dependents** — modules that import or depend on this file
+- **dependencies** — modules this file imports
+- **related** — decisions, issues, knowledge linked to this file
+- **impact level** — high / medium / low
+
+If impact is **high**, inform the user of affected modules and get confirmation before proceeding.
+
+#### Searching the Knowledge Graph
+
+Use \`query\` with SPARQL to find anything in the project graph:
+- **Decisions**: \`?s a otx:Decision\` — why architectural choices were made
+- **Issues**: \`?s a otx:Issue ; otx:status "open"\` — known bugs and their status
+- **Knowledge**: \`?s a otx:Knowledge\` — reusable patterns and lessons learned
+- **Sessions**: query the sessions graph for past work logs and next TODOs
+- **Modules**: \`?s a otx:Module\` — all scanned source modules and their dependencies (\`otx:dependsOn\`)
+- **Symbols**: \`?s a otx:Class\`, \`otx:Interface\`, \`otx:Function\`, \`otx:Method\` — code-level entities (available after symbol-depth scan)
+
+#### Other Useful Tools
+
+| Tool | When to Use |
+|------|-------------|
+| \`context_load\` | Session start — loads recent sessions, open issues, recent decisions |
+| \`context_scan\` | After significant code changes — rescans module/symbol dependencies |
+| \`context_impact\` | Before editing — checks blast radius of a file change |
+| \`schema\` | Explore ontology classes and properties, or inspect a specific class |
+| \`query\` | Run any SPARQL query against the project graph |
+| \`push\` | Record decisions, issues, knowledge, or session summaries |
+| \`doctor\` | Diagnose project health (config, store, hooks, CLAUDE.md) |
+
 ### Session End Reminder
 
 At the end of each session, push a summary:

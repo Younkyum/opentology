@@ -1,7 +1,7 @@
 {
   "name": "opentology",
-  "version": "0.2.4",
-  "description": "CLI-managed RDF/SPARQL infrastructure — Supabase for RDF",
+  "version": "0.2.5",
+  "description": "Ontology-powered project memory for AI coding assistants — your codebase as a knowledge graph",
   "type": "module",
   "bin": {
     "opentology": "./dist/index.js"
@@ -17,14 +17,16 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
+    "mcp",
+    "knowledge-graph",
+    "ontology",
     "rdf",
     "sparql",
-    "ontology",
-    "knowledge-graph",
-    "linked-data",
-    "shacl",
-    "cli",
-    "semantic-web"
+    "ai-coding",
+    "project-memory",
+    "codebase-context",
+    "claude-code",
+    "shacl"
   ],
   "author": "Younkyum Jin",
   "license": "MIT",
