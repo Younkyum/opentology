@@ -74,6 +74,30 @@ SELECT ?title ?date WHERE {
 
 OpenTology provides MCP tools to query and manage the project knowledge graph. Use them proactively.
 
+#### Pre-Analysis Context Check
+
+Before exploring code or analyzing architecture, query the knowledge graph for existing context:
+- **Decisions**: past architectural choices that may inform the current analysis
+- **Knowledge**: reusable patterns or lessons already recorded
+- **Issues**: known problems related to the area under investigation
+- **Sessions**: recent work in the same area
+
+\`\`\`sparql
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?type ?title ?body WHERE {
+  GRAPH <${contextUri}> {
+    { ?s a otx:Decision ; otx:title ?title ; otx:body ?body . BIND("decision" AS ?type) }
+    UNION
+    { ?s a otx:Knowledge ; otx:title ?title ; otx:body ?body . BIND("knowledge" AS ?type) }
+    UNION
+    { ?s a otx:Issue ; otx:title ?title ; otx:body ?body . BIND("issue" AS ?type) }
+  }
+  FILTER(CONTAINS(LCASE(?title), "keyword") || CONTAINS(LCASE(?body), "keyword"))
+} LIMIT 10
+\`\`\`
+
+This prevents redundant analysis and ensures past decisions and knowledge inform current work.
+
 #### Pre-Edit Impact Check
 
 Before modifying a file, run \`context_impact\` with the target file path to understand the blast radius:
