@@ -99,7 +99,7 @@ function transitiveClosure(pairs: Array<[string, string]>): Array<[string, strin
 
 // ── Pure inference engine ──────────────────────────────────────────────
 
-export function computeInferences(triples: Triple[]): {
+function computeInferences(triples: Triple[]): {
   inferred: Triple[];
   rules: Record<string, number>;
 } {

@@ -11,13 +11,6 @@ import { materializeInferences } from './reasoner.js';
 let cachedAdapter: EmbeddedAdapter | null = null;
 let loadedFileKeys = new Set<string>();
 
-export function createAdapter(config: OpenTologyConfig): StoreAdapter {
-  if (config.mode === 'embedded') {
-    return new EmbeddedAdapter();
-  }
-  return new HttpAdapter(config.endpoint ?? 'http://localhost:7878');
-}
-
 /**
  * Reset the cached embedded adapter. Useful for tests or after config-level
  * changes that invalidate the entire store (e.g. project re-init).

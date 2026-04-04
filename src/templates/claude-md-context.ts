@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-export const MARKER_BEGIN = '<!-- OPENTOLOGY:CONTEXT:BEGIN -->';
-export const MARKER_END = '<!-- OPENTOLOGY:CONTEXT:END -->';
+const MARKER_BEGIN = '<!-- OPENTOLOGY:CONTEXT:BEGIN -->';
+const MARKER_END = '<!-- OPENTOLOGY:CONTEXT:END -->';
 
 export function generateContextSection(projectId: string, graphUri: string): string {
   const contextUri = `${graphUri}/context`;

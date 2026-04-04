@@ -92,8 +92,6 @@ export function generateSymbolTriples(result: DeepScanResult): string[] {
   }
 
   for (const call of result.methodCalls) {
-    const callerParts = call.caller.split('.');
-    const calleeParts = call.callee.split('.');
     // Method calls reference by class.method pattern — generate a simple triple
     triples.push(`<urn:call:${encodeSegment(call.caller)}> <${OTX}calls> <urn:call:${encodeSegment(call.callee)}> .`);
     // Store caller/callee names for queryability
@@ -116,9 +114,9 @@ export function batchTriples(triples: string[], batchSize = 100): string[][] {
 
 // ── Scoped delete + batch insert ────────────────────────────────
 
-export interface StoreAdapter {
-  sparqlUpdate(query: string): Promise<void>;
-}
+import type { StoreAdapter as FullStoreAdapter } from './store-adapter.js';
+
+type StoreAdapter = Pick<FullStoreAdapter, 'sparqlUpdate'>;
 
 export async function deleteExistingSymbols(
   adapter: StoreAdapter,

@@ -4,14 +4,14 @@ import { Validator } from 'shacl-engine';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-export interface ShaclViolation {
+interface ShaclViolation {
   focusNode: string;
   path: string | null;
   message: string;
   severity: string; // "Violation" | "Warning" | "Info"
 }
 
-export interface ShaclReport {
+interface ShaclReport {
   conforms: boolean;
   violations: ShaclViolation[];
 }

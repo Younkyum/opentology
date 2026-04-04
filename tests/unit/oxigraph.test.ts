@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasGraphScope, autoScopeQuery } from '../../src/lib/oxigraph.js';
+import { hasGraphScope, autoScopeQuery } from '../../src/lib/sparql-utils.js';
 
 describe('hasGraphScope', () => {
   it('returns true for query containing GRAPH keyword', () => {
