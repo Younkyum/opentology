@@ -189,48 +189,6 @@ export function autoScopeQuery(sparql: string, graphUri: string): string | null 
   return `${before} GRAPH <${graphUri}> {${inner}} ${after}`;
 }
 
-/**
- * Auto-scope a SPARQL query with UNION over asserted + inference graphs.
- * Returns null if brace matching fails.
- */
-export function autoScopeQueryWithInference(
-  sparql: string,
-  graphUri: string,
-  inferenceGraphUri: string,
-): string | null {
-  const whereMatch = sparql.match(/\bWHERE\s*\{/i);
-  let braceStart: number;
-
-  if (whereMatch && whereMatch.index !== undefined) {
-    braceStart = whereMatch.index + whereMatch[0].length - 1;
-  } else {
-    const firstBrace = sparql.indexOf('{');
-    if (firstBrace === -1) return null;
-    braceStart = firstBrace;
-  }
-
-  let depth = 0;
-  let braceEnd = -1;
-  for (let i = braceStart; i < sparql.length; i++) {
-    if (sparql[i] === '{') depth++;
-    else if (sparql[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        braceEnd = i;
-        break;
-      }
-    }
-  }
-
-  if (braceEnd === -1) return null;
-
-  const before = sparql.slice(0, braceStart + 1);
-  const inner = sparql.slice(braceStart + 1, braceEnd);
-  const after = sparql.slice(braceEnd);
-
-  return `${before} GRAPH ?__g {${inner}} FILTER(?__g = <${graphUri}> || ?__g = <${inferenceGraphUri}>) ${after}`;
-}
-
 // ── Inference graph URI ───────────────────────────────────────────────
 
 export function getInferenceGraphUri(graphUri: string): string {

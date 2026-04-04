@@ -40,6 +40,3 @@ otx:returns a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:paramType a owl:DatatypeProperty ; rdfs:range xsd:string .
 `;
 
-export function buildAskQuery(contextGraphUri: string): string {
-  return `ASK { GRAPH <${contextGraphUri}> { <https://opentology.dev/vocab#Decision> a <http://www.w3.org/2002/07/owl#Class> } }`;
-}
