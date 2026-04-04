@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { stripSourceExtension } from './module-uri.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -254,7 +255,7 @@ export async function extractDependencyGraph(rootDir: string, gitFiles: Set<stri
   const edges: DependencyEdge[] = [];
 
   for (const filePath of sourceFiles) {
-    const moduleName = filePath.replace(/\.[tj]sx?$/, '');
+    const moduleName = stripSourceExtension(filePath);
     moduleSet.add(moduleName);
 
     let content: string;

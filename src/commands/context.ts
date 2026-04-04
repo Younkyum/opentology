@@ -12,6 +12,7 @@ import { generateContextSection, updateClaudeMd } from '../templates/claude-md-c
 import { generateHookScript } from '../templates/session-start-hook.js';
 import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
+import { normalizeModuleUri } from '../lib/module-uri.js';
 
 function ask(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -499,7 +500,7 @@ export function registerContext(program: Command): void {
 
       const contextUri = graphs['context'];
       const OTX = 'https://opentology.dev/vocab#';
-      const moduleUriStr = `urn:module:${opts.file}`;
+      const moduleUriStr = normalizeModuleUri(opts.file);
 
       try {
         const adapter = await createReadyAdapter(config);
