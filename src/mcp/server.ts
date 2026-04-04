@@ -13,6 +13,7 @@ import { deepScan } from '../lib/deep-scanner.js';
 import { pushSymbolTriples } from '../lib/deep-scan-triples.js';
 import type { OpenTologyConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
+import { normalizeModuleUri } from '../lib/module-uri.js';
 import type { StoreAdapter } from '../lib/store-adapter.js';
 import { hasGraphScope, autoScopeQuery, getInferenceGraphUri } from '../lib/sparql-utils.js';
 import { validateTurtle } from '../lib/validator.js';
@@ -725,7 +726,7 @@ async function handleContextImpact(args: Record<string, unknown>): Promise<unkno
   const contextUri = `${config.graphUri}/context`;
   const adapter = await createReadyAdapter(config);
   const OTX = 'https://opentology.dev/vocab#';
-  const moduleUriStr = `urn:module:${filePath}`;
+  const moduleUriStr = normalizeModuleUri(filePath);
 
   // 1. Modules that depend on this file (dependents / reverse deps)
   const dependentsQuery = `
