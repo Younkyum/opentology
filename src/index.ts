@@ -21,7 +21,7 @@ import { registerDoctor } from './commands/doctor.js';
 const program = new Command();
 program
   .name('opentology')
-  .version('0.2.3')
+  .version('0.2.4')
   .description('CLI-managed RDF/SPARQL infrastructure — Supabase for RDF');
 
 registerInit(program);

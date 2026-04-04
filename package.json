@@ -1,6 +1,6 @@
 {
   "name": "opentology",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "CLI-managed RDF/SPARQL infrastructure — Supabase for RDF",
   "type": "module",
   "bin": {
