@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execSync } from 'node:child_process';
 import { deepScan } from '../../src/lib/deep-scanner.js';
 
 let tempDir: string;
@@ -248,6 +249,89 @@ describe('deep-scanner', () => {
       expect(cls.filePath).toBe('src/app');
       expect(cls.name).toBe('App');
       // The URI is constructed in deep-scan-triples.ts, but filePath + name are the building blocks
+    });
+  });
+
+  describe('unsupported file detection (#65)', () => {
+    it('detects unsupported language files in a git repo', async () => {
+      // Init a git repo in tempDir
+      execSync('git init', { cwd: tempDir });
+      execSync('git config user.email "test@test.com"', { cwd: tempDir });
+      execSync('git config user.name "Test"', { cwd: tempDir });
+
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/main.ts', 'export class Main {}');
+      await writeSourceFile(tempDir, 'src/helper.rb', 'class Helper\n  def run\n    puts "hello"\n  end\nend');
+      await writeSourceFile(tempDir, 'src/lib.kt', 'class Lib {\n  fun greet() = "hi"\n}');
+
+      execSync('git add -A && git commit -m "init"', { cwd: tempDir });
+
+      const result = await deepScan(tempDir);
+      if (!result.deepScanAvailable) return;
+
+      expect(result.unsupportedFiles).toBeDefined();
+      expect(result.unsupportedFiles.length).toBeGreaterThanOrEqual(2);
+
+      const ruby = result.unsupportedFiles.find(g => g.language === 'ruby');
+      expect(ruby).toBeDefined();
+      expect(ruby!.extension).toBe('.rb');
+      expect(ruby!.count).toBe(1);
+
+      const kotlin = result.unsupportedFiles.find(g => g.language === 'kotlin');
+      expect(kotlin).toBeDefined();
+      expect(kotlin!.extension).toBe('.kt');
+    });
+
+    it('returns empty unsupportedFiles when all files are supported', async () => {
+      execSync('git init', { cwd: tempDir });
+      execSync('git config user.email "test@test.com"', { cwd: tempDir });
+      execSync('git config user.name "Test"', { cwd: tempDir });
+
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/app.ts', 'export class App {}');
+      execSync('git add -A && git commit -m "init"', { cwd: tempDir });
+
+      const result = await deepScan(tempDir);
+      if (!result.deepScanAvailable) return;
+
+      expect(result.unsupportedFiles).toBeDefined();
+      // May include config files like tsconfig.json, but no known unsupported source languages
+      const sourceUnsupported = result.unsupportedFiles.filter(
+        g => ['ruby', 'kotlin', 'csharp', 'cpp', 'php'].includes(g.language)
+      );
+      expect(sourceUnsupported.length).toBe(0);
+    });
+
+    it('skips non-source extensions like .json and .md', async () => {
+      execSync('git init', { cwd: tempDir });
+      execSync('git config user.email "test@test.com"', { cwd: tempDir });
+      execSync('git config user.name "Test"', { cwd: tempDir });
+
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/app.ts', 'export class App {}');
+      await writeSourceFile(tempDir, 'README.md', '# Readme');
+      await writeSourceFile(tempDir, 'data.json', '{}');
+      execSync('git add -A && git commit -m "init"', { cwd: tempDir });
+
+      const result = await deepScan(tempDir);
+      if (!result.deepScanAvailable) return;
+
+      const exts = result.unsupportedFiles.map(g => g.extension);
+      expect(exts).not.toContain('.json');
+      expect(exts).not.toContain('.md');
+    });
+  });
+
+  describe('result includes unsupportedFiles field', () => {
+    it('always has unsupportedFiles array in successful scan', async () => {
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/foo.ts', 'export function foo() {}');
+
+      const result = await deepScan(tempDir);
+      if (!result.deepScanAvailable) return;
+
+      expect(result).toHaveProperty('unsupportedFiles');
+      expect(Array.isArray(result.unsupportedFiles)).toBe(true);
     });
   });
 });

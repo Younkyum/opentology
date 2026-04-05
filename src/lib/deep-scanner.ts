@@ -56,12 +56,20 @@ export interface MethodCallInfo {
   callee: string;  // ClassName.methodName
 }
 
+export interface UnsupportedFileGroup {
+  extension: string;
+  language: string;
+  files: string[];
+  count: number;
+}
+
 export interface DeepScanResult {
   deepScanAvailable: true;
   classes: ClassInfo[];
   interfaces: InterfaceInfo[];
   functions: FunctionInfo[];
   methodCalls: MethodCallInfo[];
+  unsupportedFiles: UnsupportedFileGroup[];
   fileCount: number;
   symbolCount: number;
   scanDurationMs: number;
@@ -128,6 +136,73 @@ async function discoverFiles(
   return { files: allFiles.slice(0, maxFiles), total: allFiles.length };
 }
 
+// ── Unsupported language detection ─────────────────────────────
+
+const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
+  '.rb': 'ruby', '.kt': 'kotlin', '.kts': 'kotlin',
+  '.cs': 'csharp', '.cpp': 'cpp', '.cc': 'cpp', '.cxx': 'cpp',
+  '.c': 'c', '.h': 'c-header', '.hpp': 'cpp-header',
+  '.php': 'php', '.lua': 'lua', '.dart': 'dart',
+  '.scala': 'scala', '.ex': 'elixir', '.exs': 'elixir',
+  '.zig': 'zig', '.jl': 'julia', '.r': 'r',
+  '.clj': 'clojure', '.erl': 'erlang', '.hs': 'haskell',
+  '.ml': 'ocaml', '.nim': 'nim', '.cr': 'crystal',
+  '.pl': 'perl', '.pm': 'perl',
+};
+
+const SKIP_EXTENSIONS = new Set([
+  '.json', '.yaml', '.yml', '.toml', '.xml', '.ini', '.cfg', '.conf',
+  '.md', '.txt', '.rst', '.csv', '.tsv', '.adoc',
+  '.css', '.scss', '.less', '.sass', '.styl',
+  '.html', '.htm', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.avif',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  '.lock', '.log', '.map', '.d.ts',
+  '.wasm', '.bin', '.exe', '.dll', '.so', '.dylib', '.a',
+  '.env', '.gitignore', '.gitattributes', '.editorconfig',
+  '.prettierrc', '.eslintrc', '.babelrc',
+  '.sh', '.bash', '.zsh', '.fish', '.bat', '.cmd', '.ps1',
+]);
+
+async function discoverUnsupportedFiles(
+  rootDir: string,
+  supportedExtensions: Set<string>,
+): Promise<UnsupportedFileGroup[]> {
+  const { execSync } = await import('node:child_process');
+  const { extname } = await import('node:path');
+
+  let stdout: string;
+  try {
+    stdout = execSync(`git -C "${rootDir}" ls-files`, {
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch {
+    return [];
+  }
+
+  const allFiles = stdout.trim().split('\n').filter(Boolean)
+    .filter(f => !f.includes('node_modules') && !f.includes('/dist/'));
+
+  const groups = new Map<string, string[]>();
+  for (const file of allFiles) {
+    const ext = extname(file).toLowerCase();
+    if (!ext || supportedExtensions.has(ext) || SKIP_EXTENSIONS.has(ext)) continue;
+    if (!EXTENSION_LANGUAGE_MAP[ext]) continue; // only known source languages
+    if (!groups.has(ext)) groups.set(ext, []);
+    groups.get(ext)!.push(file);
+  }
+
+  return Array.from(groups.entries())
+    .map(([ext, files]) => ({
+      extension: ext,
+      language: EXTENSION_LANGUAGE_MAP[ext] ?? ext.slice(1),
+      files,
+      count: files.length,
+    }))
+    .filter(g => g.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
 // ── Main entry point ────────────────────────────────────────────
 
 export async function deepScan(
@@ -179,6 +254,7 @@ export async function deepScan(
       interfaces: [],
       functions: [],
       methodCalls: [],
+      unsupportedFiles: [],
       fileCount: total,
       symbolCount: 0,
       scanDurationMs: Date.now() - start,
@@ -248,12 +324,17 @@ export async function deepScan(
     + interfaces.length
     + functions.length;
 
+  // Discover unsupported language files
+  const supportedExtensions = new Set(available.flatMap(e => e.extensions));
+  const unsupportedFiles = await discoverUnsupportedFiles(rootDir, supportedExtensions);
+
   return {
     deepScanAvailable: true,
     classes,
     interfaces,
     functions,
     methodCalls,
+    unsupportedFiles,
     fileCount: files.length,
     symbolCount,
     scanDurationMs: Date.now() - start,
