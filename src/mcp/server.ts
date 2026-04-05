@@ -479,22 +479,52 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
 
     // Auto-push triples server-side
     let pushStats: { triplesInserted: number; batchCount: number } | null = null;
+    let moduleStats: { modules: number; edges: number } | null = null;
     try {
       const config = loadConfig();
       const contextUri = `${config.graphUri}/context`;
       const adapter = await createReadyAdapter(config);
+
+      // Push symbol triples
       pushStats = await pushSymbolTriples(adapter, contextUri, scanResult);
+
+      // Also push module dependency graph (fixes #64)
+      const snapshot = await scanCodebase(process.cwd());
+      if (snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0) {
+        const dg = snapshot.dependencyGraph;
+        // Clear stale Module/dependsOn triples
+        await adapter.sparqlUpdate(
+          `DELETE { GRAPH <${contextUri}> { ?s ?p ?o } } WHERE { GRAPH <${contextUri}> { ?s ?p ?o . { ?s a <https://opentology.dev/vocab#Module> } UNION { ?s <https://opentology.dev/vocab#dependsOn> ?o } } }`,
+        );
+        const sparqlTriples: string[] = [];
+        for (const mod of dg.modules) {
+          sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> ; <https://opentology.dev/vocab#title> "${mod}" .`);
+        }
+        for (const edge of dg.edges) {
+          sparqlTriples.push(`<urn:module:${edge.from}> <https://opentology.dev/vocab#dependsOn> <urn:module:${edge.to}> .`);
+        }
+        await adapter.sparqlUpdate(
+          `INSERT DATA { GRAPH <${contextUri}> {\n${sparqlTriples.join('\n')}\n} }`,
+        );
+        moduleStats = { modules: dg.modules.length, edges: dg.edges.length };
+      }
+
       await persistGraph(adapter, config, contextUri);
     } catch {
       // Non-fatal: push is best-effort
     }
 
+    const hints: string[] = [];
+    if (pushStats) hints.push(`Symbol triples: ${pushStats.triplesInserted} in ${pushStats.batchCount} batches`);
+    if (moduleStats) hints.push(`Module triples: ${moduleStats.modules} modules, ${moduleStats.edges} edges`);
+
     return {
       ...scanResult,
       pushStats,
+      moduleStats,
       _experimental: true,
-      _hint: pushStats
-        ? `Symbol triples pushed: ${pushStats.triplesInserted} triples in ${pushStats.batchCount} batches. Query examples:\n- Classes: SELECT ?c ?name WHERE { ?c a otx:Class ; otx:title ?name }\n- Functions in a module: SELECT ?f ?name WHERE { ?f a otx:Function ; otx:title ?name ; otx:definedIn <urn:module:src/mcp/server> }\n- Call graph: SELECT ?caller ?callee WHERE { ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee }`
+      _hint: hints.length
+        ? `${hints.join('. ')}. Query examples:\n- Classes: SELECT ?c ?name WHERE { ?c a otx:Class ; otx:title ?name }\n- Dependents: SELECT ?dep WHERE { ?dep otx:dependsOn <urn:module:src/lib/store-adapter> }\n- Call graph: SELECT ?caller ?callee WHERE { ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee }`
         : 'Deep scan completed but triple push failed. Use push manually with the generated triples.',
     };
   }
