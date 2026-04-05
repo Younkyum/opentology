@@ -1,6 +1,6 @@
 {
   "name": "opentology",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Ontology-powered project memory for AI coding assistants — your codebase as a knowledge graph",
   "type": "module",
   "bin": {
@@ -51,9 +51,9 @@
     "shacl-engine": "^1.1.0"
   },
   "peerDependencies": {
+    "tree-sitter-wasms": ">=0.1.0",
     "ts-morph": ">=21.0.0",
-    "web-tree-sitter": ">=0.24.0",
-    "tree-sitter-wasms": ">=0.1.0"
+    "web-tree-sitter": ">=0.24.0 <0.26.0"
   },
   "peerDependenciesMeta": {
     "ts-morph": {
@@ -72,8 +72,8 @@
     "tree-sitter-wasms": "^0.1.13",
     "ts-morph": "^27.0.2",
     "ts-node": "^10.9.2",
-    "web-tree-sitter": "^0.26.8",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "web-tree-sitter": "^0.24.0"
   }
 }

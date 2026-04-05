@@ -224,12 +224,13 @@ describe('deep-scanner', () => {
       // Bad file may produce a warning or ts-morph may handle parse errors gracefully
     });
 
-    it('returns unavailable when tsconfig is missing', async () => {
-      // No tsconfig.json written
+    it('falls back to tree-sitter when tsconfig is missing', async () => {
+      // No tsconfig.json — ts-morph unavailable, but tree-sitter can still parse .ts
       await writeSourceFile(tempDir, 'src/foo.ts', 'export class Foo {}');
 
       const result = await deepScan(tempDir);
-      expect(result.deepScanAvailable).toBe(false);
+      // tree-sitter fallback makes deep scan available even without tsconfig
+      expect(result.deepScanAvailable).toBe(true);
     });
   });
 

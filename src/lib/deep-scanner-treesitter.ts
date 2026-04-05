@@ -12,10 +12,11 @@ import type { ClassInfo, InterfaceInfo, FunctionInfo, MethodCallInfo } from './d
 import type { LanguageExtractor, ExtractedSymbols } from './language-extractor.js';
 
 // Re-export tree-sitter types for subclass use
-type TSParser = import('web-tree-sitter').Parser;
+// In web-tree-sitter@0.24.x, types live under the Parser namespace
+type TSParser = import('web-tree-sitter');
 type TSLanguage = import('web-tree-sitter').Language;
 type TSTree = import('web-tree-sitter').Tree;
-type TSNode = import('web-tree-sitter').Node;
+type TSNode = import('web-tree-sitter').SyntaxNode;
 
 export type { TSNode, TSTree, TSLanguage };
 
