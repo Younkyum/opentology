@@ -251,6 +251,21 @@ export function registerContext(program: Command): void {
 
         settings.hooks = hooks;
         writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+
+        // Ensure .opentology/snapshots/ is in .gitignore
+        const gitignorePath = join(process.cwd(), '.gitignore');
+        const snapshotIgnore = '.opentology/snapshots/';
+        if (existsSync(gitignorePath)) {
+          const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
+          if (!gitignoreContent.includes(snapshotIgnore)) {
+            writeFileSync(gitignorePath, gitignoreContent.trimEnd() + '\n' + snapshotIgnore + '\n', 'utf-8');
+            console.log(pc.green('  Added .opentology/snapshots/ to .gitignore'));
+          }
+        } else {
+          writeFileSync(gitignorePath, snapshotIgnore + '\n', 'utf-8');
+          console.log(pc.green('  Created .gitignore with .opentology/snapshots/'));
+        }
+
         console.log('');
         console.log(pc.dim('Consider adding .opentology/hooks/ to version control so team members share the hook.'));
 

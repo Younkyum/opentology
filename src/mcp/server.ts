@@ -14,6 +14,7 @@ import { pushSymbolTriples } from '../lib/deep-scan-triples.js';
 import type { OpenTologyConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
 import { normalizeModuleUri } from '../lib/module-uri.js';
+import { snapshotGraph, listSnapshots, restoreSnapshot } from '../lib/snapshot.js';
 import type { StoreAdapter } from '../lib/store-adapter.js';
 import { hasGraphScope, autoScopeQuery, getInferenceGraphUri } from '../lib/sparql-utils.js';
 import { validateTurtle } from '../lib/validator.js';
@@ -150,6 +151,7 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   const adapter = await createReadyAdapter(config);
 
   if (replace) {
+    await snapshotGraph(adapter, config, graphUri);
     await adapter.dropGraph(graphUri);
   }
 
@@ -269,6 +271,7 @@ async function handleDrop(args: Record<string, unknown>): Promise<unknown> {
   });
 
   const adapter = await createReadyAdapter(config);
+  await snapshotGraph(adapter, config, graphUri);
   await adapter.dropGraph(graphUri);
   await persistGraph(adapter, config, graphUri);
   return { success: true, graphUri };
@@ -288,9 +291,35 @@ async function handleDelete(args: Record<string, unknown>): Promise<unknown> {
   });
 
   const adapter = await createReadyAdapter(config);
+  await snapshotGraph(adapter, config, graphUri);
   await adapter.deleteTriples(graphUri, { turtle: content, where });
   await persistGraph(adapter, config, graphUri);
   return { success: true };
+}
+
+async function handleRollback(args: Record<string, unknown>): Promise<unknown> {
+  const action = args.action as string;
+  const { config, graphUri } = resolveConfig({
+    graphUri: args.graphUri as string | undefined,
+    graph: args.graph as string | undefined,
+  });
+
+  if (action === 'list') {
+    const snapshots = listSnapshots(graphUri);
+    return { graphUri, snapshots };
+  }
+
+  if (action === 'restore') {
+    const to = args.to as string;
+    if (!to) {
+      throw new Error('timestamp (to) is required for restore action');
+    }
+    const adapter = await createReadyAdapter(config);
+    await restoreSnapshot(adapter, config, graphUri, to);
+    return { success: true, graphUri, restoredTo: to };
+  }
+
+  throw new Error(`Unknown rollback action: ${action}. Use 'list' or 'restore'.`);
 }
 
 async function handleDiff(args: Record<string, unknown>): Promise<unknown> {
@@ -382,6 +411,7 @@ async function handleGraphDrop(args: Record<string, unknown>): Promise<unknown> 
   const graphUri = resolveGraphUri(config, name);
   const adapter = await createReadyAdapter(config);
 
+  await snapshotGraph(adapter, config, graphUri);
   await adapter.dropGraph(graphUri);
   await persistGraph(adapter, config, graphUri);
 
@@ -403,6 +433,7 @@ async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
   const adapter = await createReadyAdapter(config);
 
   if (clear) {
+    await snapshotGraph(adapter, config, graphUri);
     await clearInferences(adapter, graphUri);
     return { success: true, cleared: true };
   }
@@ -460,6 +491,8 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
     const adapter = await createReadyAdapter(config);
     if (snapshot.dependencyGraph && snapshot.dependencyGraph.modules.length > 0) {
       const dg = snapshot.dependencyGraph;
+      // Snapshot before destructive scan
+      await snapshotGraph(adapter, config, contextUri);
       // Scoped delete: clear stale module triples before re-insert
       await adapter.sparqlUpdate(
         `DELETE WHERE { GRAPH <${contextUri}> { ?m a <https://opentology.dev/vocab#Module> . ?m ?p ?o } }`
@@ -624,6 +657,20 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     settings.hooks = hooks;
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
     actions.push('Auto-registered hooks in .claude/settings.json');
+  }
+
+  // Ensure .opentology/snapshots/ is in .gitignore
+  const gitignorePath = join(process.cwd(), '.gitignore');
+  const snapshotIgnore = '.opentology/snapshots/';
+  if (existsSync(gitignorePath)) {
+    const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
+    if (!gitignoreContent.includes(snapshotIgnore)) {
+      writeFileSync(gitignorePath, gitignoreContent.trimEnd() + '\n' + snapshotIgnore + '\n', 'utf-8');
+      actions.push('Added .opentology/snapshots/ to .gitignore');
+    }
+  } else {
+    writeFileSync(gitignorePath, snapshotIgnore + '\n', 'utf-8');
+    actions.push('Created .gitignore with .opentology/snapshots/');
   }
 
   // Auto-push Module triples from dependency graph
@@ -1394,6 +1441,33 @@ export async function startMcpServer(): Promise<void> {
           properties: {},
         },
       },
+      {
+        name: 'rollback',
+        description: 'List or restore graph snapshots. Snapshots are automatically created before destructive operations (drop, delete, scan, etc.). Use action=list to see available snapshots, action=restore with a timestamp to restore.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            action: {
+              type: 'string',
+              enum: ['list', 'restore'],
+              description: 'Action: list available snapshots or restore a specific one',
+            },
+            to: {
+              type: 'string',
+              description: 'Timestamp of the snapshot to restore (required for action=restore)',
+            },
+            graph: {
+              type: 'string',
+              description: 'Logical graph name (as created by graph_create). Resolves to a graph URI via config.',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses config default if omitted)',
+            },
+          },
+          required: ['action'],
+        },
+      },
     ],
   }));
 
@@ -1468,8 +1542,16 @@ export async function startMcpServer(): Promise<void> {
         case 'context_impact':
           result = await handleContextImpact(args as Record<string, unknown>);
           break;
-        case 'context_sync':
-          result = await syncContext(loadConfig(), process.cwd());
+        case 'context_sync': {
+          const syncConfig = loadConfig();
+          const syncContextUri = `${syncConfig.graphUri}/context`;
+          const syncAdapter = await createReadyAdapter(syncConfig);
+          await snapshotGraph(syncAdapter, syncConfig, syncContextUri);
+          result = await syncContext(syncConfig, process.cwd());
+          break;
+        }
+        case 'rollback':
+          result = await handleRollback(args as Record<string, unknown>);
           break;
         case 'doctor':
           result = await runDoctor();
