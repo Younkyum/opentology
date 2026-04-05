@@ -519,7 +519,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       // Insert fresh triples
       const sparqlTriples: string[] = [];
       for (const mod of dg.modules) {
-        sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> .`);
+        sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> ; <https://opentology.dev/vocab#title> "${mod}" .`);
       }
       for (const edge of dg.edges) {
         sparqlTriples.push(`<urn:module:${edge.from}> <https://opentology.dev/vocab#dependsOn> <urn:module:${edge.to}> .`);
@@ -751,7 +751,7 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
       const adapter = await createReadyAdapter(config);
       const sparqlTriples: string[] = [];
       for (const mod of dg.modules) {
-        sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> .`);
+        sparqlTriples.push(`<urn:module:${mod}> a <https://opentology.dev/vocab#Module> ; <https://opentology.dev/vocab#title> "${mod}" .`);
       }
       for (const edge of dg.edges) {
         sparqlTriples.push(`<urn:module:${edge.from}> <https://opentology.dev/vocab#dependsOn> <urn:module:${edge.to}> .`);
