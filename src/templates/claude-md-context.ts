@@ -10,7 +10,10 @@ export function generateContextSection(projectId: string, graphUri: string): str
   return `${MARKER_BEGIN}
 ## Context Management — OpenTology
 
-This project uses OpenTology as its project context graph.
+This project uses OpenTology as its knowledge graph — treat it as the project's **long-term memory**.
+Before reading source files, grep-searching, or making assumptions, **query the graph first**.
+It holds architectural decisions, resolved issues, reusable patterns, module dependencies,
+symbol-level call graphs, and session history. Prefer graph knowledge over re-deriving facts from code.
 
 ### Graph Structure
 
