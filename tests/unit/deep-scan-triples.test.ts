@@ -13,6 +13,7 @@ function makeResult(overrides?: Partial<DeepScanResult>): DeepScanResult {
     interfaces: [],
     functions: [],
     methodCalls: [],
+    unsupportedFiles: [],
     fileCount: 1,
     symbolCount: 0,
     scanDurationMs: 100,

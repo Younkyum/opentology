@@ -518,15 +518,75 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
     if (pushStats) hints.push(`Symbol triples: ${pushStats.triplesInserted} in ${pushStats.batchCount} batches`);
     if (moduleStats) hints.push(`Module triples: ${moduleStats.modules} modules, ${moduleStats.edges} edges`);
 
-    return {
-      ...scanResult,
+    // Build compact summary — do NOT return full symbol arrays (#66)
+    const compact: Record<string, unknown> = {
+      deepScanAvailable: true,
+      counts: {
+        classes: scanResult.classes.length,
+        interfaces: scanResult.interfaces.length,
+        functions: scanResult.functions.length,
+        methodCalls: scanResult.methodCalls.length,
+        files: scanResult.fileCount,
+        symbols: scanResult.symbolCount,
+      },
+      scanDurationMs: scanResult.scanDurationMs,
+      capped: scanResult.capped,
+      warnings: scanResult.warnings,
       pushStats,
       moduleStats,
       _experimental: true,
       _hint: hints.length
-        ? `${hints.join('. ')}. Query examples:\n- Classes: SELECT ?c ?name WHERE { ?c a otx:Class ; otx:title ?name }\n- Dependents: SELECT ?dep WHERE { ?dep otx:dependsOn <urn:module:src/lib/store-adapter> }\n- Call graph: SELECT ?caller ?callee WHERE { ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee }`
+        ? `${hints.join('. ')}. All symbols auto-pushed to graph. Query examples:\n- Classes: SELECT ?c ?name WHERE { ?c a otx:Class ; otx:title ?name }\n- Dependents: SELECT ?dep WHERE { ?dep otx:dependsOn <urn:module:src/lib/store-adapter> }\n- Call graph: SELECT ?caller ?callee WHERE { ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee }`
         : 'Deep scan completed but triple push failed. Use push manually with the generated triples.',
     };
+
+    // LLM fallback for unsupported languages (#65)
+    if (scanResult.unsupportedFiles.length > 0) {
+      const samples: Array<{ path: string; language: string; content: string }> = [];
+      for (const group of scanResult.unsupportedFiles.slice(0, 5)) {
+        // Pick entry-point-like files first, then first files
+        const sorted = [...group.files].sort((a, b) => {
+          const isEntry = (f: string) => /\/(main|index|app|mod|lib)\.[^/]+$/.test(f) ? 0 : 1;
+          return isEntry(a) - isEntry(b);
+        });
+        for (const file of sorted.slice(0, 2)) {
+          try {
+            const fullPath = join(process.cwd(), file);
+            const raw = readFileSync(fullPath, 'utf-8');
+            const lines = raw.split('\n').slice(0, 30).join('\n');
+            samples.push({ path: file, language: group.language, content: lines });
+          } catch { /* skip unreadable */ }
+        }
+      }
+      compact.unsupportedFiles = scanResult.unsupportedFiles.map(g => ({
+        language: g.language,
+        extension: g.extension,
+        count: g.count,
+        files: g.files.slice(0, 5),
+      }));
+      if (samples.length > 0) {
+        compact.samples = samples;
+        compact.turtleTemplate = [
+          '# Push symbol triples for unsupported language files.',
+          '# Replace {filePath} and {Name} with actual values from the samples above.',
+          '@prefix otx: <https://opentology.dev/vocab#> .',
+          '',
+          '# Class/Struct:',
+          '# <urn:symbol:{filePath}/class/{Name}> a otx:Class ;',
+          '#     otx:title "{Name}" ; otx:definedIn <urn:module:{filePath}> .',
+          '',
+          '# Function:',
+          '# <urn:symbol:{filePath}/function/{name}> a otx:Function ;',
+          '#     otx:title "{name}" ; otx:definedIn <urn:module:{filePath}> .',
+          '',
+          '# Interface/Trait/Protocol:',
+          '# <urn:symbol:{filePath}/interface/{Name}> a otx:Interface ;',
+          '#     otx:title "{Name}" ; otx:definedIn <urn:module:{filePath}> .',
+        ].join('\n');
+      }
+    }
+
+    return compact;
   }
 
   // Default: module-level scan — now auto-pushes module triples like context_init
