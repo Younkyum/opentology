@@ -62,7 +62,7 @@ function resolveConfig(params: { endpoint?: string; graphUri?: string; graph?: s
  * Exports the full graph, writes to .opentology/data/{slug}.ttl, and tracks
  * the file in config — mirroring CLI push behavior.
  */
-async function persistGraph(adapter: StoreAdapter, config: OpenTologyConfig, graphUri: string): Promise<void> {
+export async function persistGraph(adapter: StoreAdapter, config: OpenTologyConfig, graphUri: string): Promise<void> {
   if (config.mode !== 'embedded') return;
 
   const exported = await adapter.exportGraph(graphUri);
