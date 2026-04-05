@@ -30,12 +30,15 @@ otx:Class a owl:Class .
 otx:Interface a owl:Class .
 otx:Function a owl:Class .
 otx:Method a owl:Class .
+otx:MethodCall a owl:Class .
 
 otx:definedIn a owl:ObjectProperty ; rdfs:range otx:Module .
 otx:extends a owl:ObjectProperty ; rdfs:domain otx:Class ; rdfs:range otx:Class .
 otx:implements a owl:ObjectProperty ; rdfs:domain otx:Class ; rdfs:range otx:Interface .
 otx:hasMethod a owl:ObjectProperty ; rdfs:domain otx:Class ; rdfs:range otx:Method .
-otx:calls a owl:ObjectProperty ; rdfs:domain otx:Method ; rdfs:range otx:Method .
+otx:calls a owl:ObjectProperty .
+otx:callerSymbol a owl:ObjectProperty ; rdfs:domain otx:MethodCall .
+otx:calleeSymbol a owl:ObjectProperty ; rdfs:domain otx:MethodCall .
 otx:returns a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:paramType a owl:DatatypeProperty ; rdfs:range xsd:string .
 `;
