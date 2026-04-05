@@ -1,6 +1,6 @@
 {
   "name": "opentology",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "Ontology-powered project memory for AI coding assistants — your codebase as a knowledge graph",
   "type": "module",
   "bin": {
