@@ -92,11 +92,11 @@ export function generateSymbolTriples(result: DeepScanResult): string[] {
   }
 
   for (const call of result.methodCalls) {
-    // Method calls reference by class.method pattern — generate a simple triple
-    triples.push(`<urn:call:${encodeSegment(call.caller)}> <${OTX}calls> <urn:call:${encodeSegment(call.callee)}> .`);
-    // Store caller/callee names for queryability
-    triples.push(`<urn:call:${encodeSegment(call.caller)}> <${OTX}title> "${esc(call.caller)}" .`);
-    triples.push(`<urn:call:${encodeSegment(call.callee)}> <${OTX}title> "${esc(call.callee)}" .`);
+    const callUri = `urn:call:${encodeSegment(call.caller)}--${encodeSegment(call.callee)}`;
+    triples.push(`<${callUri}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <${OTX}MethodCall> .`);
+    triples.push(`<${callUri}> <${OTX}callerSymbol> "${esc(call.caller)}" .`);
+    triples.push(`<${callUri}> <${OTX}calleeSymbol> "${esc(call.callee)}" .`);
+    triples.push(`<${callUri}> <${OTX}title> "${esc(call.caller)} -> ${esc(call.callee)}" .`);
   }
 
   return triples;
@@ -129,6 +129,10 @@ export async function deleteExistingSymbols(
       `DELETE WHERE { GRAPH <${graphUri}> { ?s <${OTX}definedIn> <${modUri}> . ?s ?p ?o } }`
     );
   }
+  // Clean up MethodCall triples (no definedIn link, so delete all and re-insert)
+  await adapter.sparqlUpdate(
+    `DELETE WHERE { GRAPH <${graphUri}> { ?s a <${OTX}MethodCall> . ?s ?p ?o } }`
+  );
 }
 
 export async function pushSymbolTriples(

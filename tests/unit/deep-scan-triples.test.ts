@@ -161,6 +161,38 @@ describe('generateSymbolTriples', () => {
     expect(ifaceTriple).toBeDefined();
   });
 
+  it('produces otx:MethodCall triples with caller/callee symbols', () => {
+    const result = makeResult({
+      methodCalls: [
+        { caller: 'Foo.bar', callee: 'Baz.qux' },
+        { caller: 'handlePush', callee: 'persistGraph' },
+      ],
+    });
+
+    const triples = generateSymbolTriples(result);
+
+    // Should have rdf:type MethodCall
+    const typeTriples = triples.filter(t => t.includes('vocab#MethodCall'));
+    expect(typeTriples.length).toBe(2);
+
+    // Should have callerSymbol and calleeSymbol
+    const callerTriples = triples.filter(t => t.includes('vocab#callerSymbol'));
+    expect(callerTriples.length).toBe(2);
+    const calleeTriples = triples.filter(t => t.includes('vocab#calleeSymbol'));
+    expect(calleeTriples.length).toBe(2);
+
+    // Should have title with "caller -> callee" format
+    const titleTriples = triples.filter(t => t.includes('->'));
+    expect(titleTriples.length).toBe(2);
+    expect(titleTriples[0]).toContain('Foo.bar');
+    expect(titleTriples[0]).toContain('Baz.qux');
+
+    // Should parse as valid N-Triples
+    const parser = new Parser({ format: 'N-Triples' });
+    const quads = parser.parse(triples.join('\n'));
+    expect(quads.length).toBeGreaterThan(0);
+  });
+
   it('produces otx:Function triple for functions', () => {
     const result = makeResult({
       functions: [{

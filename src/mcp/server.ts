@@ -477,7 +477,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       pushStats,
       _experimental: true,
       _hint: pushStats
-        ? `Symbol triples pushed: ${pushStats.triplesInserted} triples in ${pushStats.batchCount} batches. Query with: SELECT ?c WHERE { ?c a otx:Class ; otx:definedIn <urn:module:...> }`
+        ? `Symbol triples pushed: ${pushStats.triplesInserted} triples in ${pushStats.batchCount} batches. Query examples:\n- Classes: SELECT ?c ?name WHERE { ?c a otx:Class ; otx:title ?name }\n- Functions in a module: SELECT ?f ?name WHERE { ?f a otx:Function ; otx:title ?name ; otx:definedIn <urn:module:src/mcp/server> }\n- Call graph: SELECT ?caller ?callee WHERE { ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee }`
         : 'Deep scan completed but triple push failed. Use push manually with the generated triples.',
     };
   }
@@ -711,6 +711,7 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     moduleStats,
     dependencyHint,
     hooksAutoInstalled: hooksChanged,
+    scanSuggestion: 'Run context_scan to populate the knowledge graph. Use depth="module" for file-level dependencies, or depth="symbol" (with includeMethodCalls=true) for class/function/call-level analysis. The symbol scan enables queries like "which functions call persistGraph?" from the graph.',
   };
 }
 

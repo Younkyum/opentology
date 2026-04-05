@@ -29,6 +29,12 @@ This project uses OpenTology as its project context graph.
 | \`otx:Knowledge\` | Reusable knowledge |
 | \`otx:Session\` | Session logs |
 | \`otx:Pattern\` | Recurring patterns/conventions |
+| \`otx:Module\` | Source file module |
+| \`otx:Class\` | Class definition (symbol scan) |
+| \`otx:Interface\` | Interface definition (symbol scan) |
+| \`otx:Function\` | Function definition (symbol scan) |
+| \`otx:Method\` | Method definition (symbol scan) |
+| \`otx:MethodCall\` | Call relationship between symbols (symbol scan) |
 
 | Property | Range | Description |
 |----------|-------|-------------|
@@ -39,6 +45,11 @@ This project uses OpenTology as its project context graph.
 | \`otx:reason\` | string | Decision rationale |
 | \`otx:nextTodo\` | string | Next action item |
 | \`otx:relatedTo\` | resource | Related entity |
+| \`otx:dependsOn\` | Module | Module import dependency |
+| \`otx:definedIn\` | Module | Which module a symbol belongs to |
+| \`otx:callerSymbol\` | string | Caller in a MethodCall |
+| \`otx:calleeSymbol\` | string | Callee in a MethodCall |
+| \`otx:calls\` | resource | Call relationship |
 
 ### When to Record
 
@@ -110,13 +121,48 @@ If impact is **high**, inform the user of affected modules and get confirmation 
 
 #### Searching the Knowledge Graph
 
-Use \`query\` with SPARQL to find anything in the project graph:
+Use \`query\` with SPARQL to find anything in the project graph. **Always query the graph before reading source files** when investigating code structure, dependencies, or call relationships:
+
 - **Decisions**: \`?s a otx:Decision\` — why architectural choices were made
 - **Issues**: \`?s a otx:Issue ; otx:status "open"\` — known bugs and their status
 - **Knowledge**: \`?s a otx:Knowledge\` — reusable patterns and lessons learned
 - **Sessions**: query the sessions graph for past work logs and next TODOs
 - **Modules**: \`?s a otx:Module\` — all scanned source modules and their dependencies (\`otx:dependsOn\`)
 - **Symbols**: \`?s a otx:Class\`, \`otx:Interface\`, \`otx:Function\`, \`otx:Method\` — code-level entities (available after symbol-depth scan)
+- **Call graph**: \`?s a otx:MethodCall\` — who calls whom (available after symbol scan with \`includeMethodCalls=true\`)
+
+\`\`\`sparql
+# Functions in a specific module
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?name WHERE {
+  GRAPH <${contextUri}> {
+    ?f a otx:Function ; otx:title ?name ; otx:definedIn <urn:module:src/mcp/server> .
+  }
+}
+
+# Who calls a specific function?
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?caller WHERE {
+  GRAPH <${contextUri}> {
+    ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee .
+    FILTER(CONTAINS(?callee, "persistGraph"))
+  }
+}
+
+# Module dependency chain (what depends on a module?)
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?dependent WHERE {
+  GRAPH <${contextUri}> {
+    ?dependent otx:dependsOn+ <urn:module:src/lib/store-adapter> .
+  }
+}
+\`\`\`
+
+#### Post-Edit Graph Update
+
+After significant code changes (new files, renamed functions, changed dependencies), run \`context_scan\` to keep the knowledge graph in sync:
+- \`depth="module"\` — fast, updates file-level imports
+- \`depth="symbol"\` with \`includeMethodCalls=true\` — thorough, updates class/function/call graph
 
 #### Other Useful Tools
 
