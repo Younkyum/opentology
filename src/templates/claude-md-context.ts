@@ -121,6 +121,69 @@ Push a summary at the end of each meaningful session:
 ${MARKER_END}`;
 }
 
+const GLOBAL_MARKER_BEGIN = '<!-- OPENTOLOGY:GLOBAL:BEGIN -->';
+const GLOBAL_MARKER_END = '<!-- OPENTOLOGY:GLOBAL:END -->';
+
+export function generateGlobalSection(): string {
+  return `${GLOBAL_MARKER_BEGIN}
+# OpenTology — RDF 기반 프로젝트 컨텍스트 관리
+
+Claude Code는 글로벌 MCP \`opentology\`를 통해 프로젝트 지식을 RDF 그래프로 관리한다.
+온톨로지, 도구 사용법, SPARQL 예시 등 상세 정보는 프로젝트별 CLAUDE.md에 자동 생성된다.
+여기서는 **모든 프로젝트에 공통 적용되는 행동 규칙만** 정의한다.
+
+## 핵심 원칙
+
+1. **그래프 먼저** — 코드를 읽거나 가정하기 전에 \`query\`로 그래프를 먼저 조회한다.
+2. **항상 기록** — 세션 종료 시 \`otx:Session\`, 의미 있는 작업은 \`Knowledge\`/\`Decision\`/\`Issue\`로 기록.
+3. **자동 수집** — 사용자가 URL이나 외부 소스를 공유하면 ingest 프로토콜을 자동 실행한다.
+4. **영향도 확인** — 파일 수정 전 \`context_impact\`로 blast radius를 확인한다.
+
+## URI 규칙
+
+| 대상 | 패턴 | 예시 |
+|------|------|------|
+| 프로젝트 | \`urn:project:{name}\` | \`urn:project:opentology\` |
+| 세션 | \`urn:session:{date}\` | \`urn:session:2026-04-05\` |
+| 의사결정 | \`urn:decision:{date}-{slug}\` | \`urn:decision:2026-04-05-ingest-feature\` |
+| 이슈 | \`urn:issue:{id}\` | \`urn:issue:1\` |
+| 지식 | \`urn:knowledge:{slug}\` | \`urn:knowledge:wasm-oxigraph\` |
+| 패턴 | \`urn:pattern:{slug}\` | \`urn:pattern:singleton-adapter\` |
+| 소스 | \`urn:source:{slug}\` | \`urn:source:karpathy-llm-wiki\` |
+
+## 기록 기준
+
+- **기록함**: 아키텍처 변경, 새 기능 구현, 버그 해결, 재사용 가능한 지식, 외부 소스 수집
+- **기록 안 함**: 오타 수정, 단순 질문 응답, 단순 설정 변경
+- 기록은 **간결하게**. 민감 정보(API 키 등)는 절대 기록하지 않는다.
+- \`opentology\` MCP가 연결되지 않은 프로젝트에서는 기록을 건너뛴다.
+${GLOBAL_MARKER_END}`;
+}
+
+export function updateGlobalClaudeMd(filePath: string): void {
+  const section = generateGlobalSection();
+
+  if (!existsSync(filePath)) {
+    writeFileSync(filePath, section + '\n', 'utf-8');
+    return;
+  }
+
+  const content = readFileSync(filePath, 'utf-8');
+  const beginIdx = content.indexOf(GLOBAL_MARKER_BEGIN);
+  const endIdx = content.indexOf(GLOBAL_MARKER_END);
+
+  if (beginIdx === -1 || endIdx === -1) {
+    // No markers — prepend before existing content
+    writeFileSync(filePath, section + '\n\n' + content, 'utf-8');
+    return;
+  }
+
+  // Replace between markers
+  const before = content.substring(0, beginIdx);
+  const after = content.substring(endIdx + GLOBAL_MARKER_END.length);
+  writeFileSync(filePath, before + section + after, 'utf-8');
+}
+
 export function updateClaudeMd(filePath: string, section: string): void {
   if (!existsSync(filePath)) {
     // Case 1: No file — create with just the section

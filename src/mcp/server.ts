@@ -25,7 +25,7 @@ import type { InferenceResult } from '../lib/reasoner.js';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
-import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
+import { generateContextSection, updateClaudeMd, updateGlobalClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
 import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateUserPromptHookScript } from '../templates/user-prompt-hook.js';
@@ -715,6 +715,16 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
   } else {
     updateClaudeMd(claudeMdPath, section);
     actions.push('Updated CLAUDE.md context section');
+  }
+
+  // Update global ~/.claude/CLAUDE.md
+  const homedir = (await import('node:os')).homedir();
+  const globalClaudeMdPath = join(homedir, '.claude', 'CLAUDE.md');
+  try {
+    updateGlobalClaudeMd(globalClaudeMdPath);
+    actions.push('Updated global ~/.claude/CLAUDE.md OpenTology section');
+  } catch {
+    // Non-fatal: global CLAUDE.md update is best-effort
   }
 
   // Generate slash commands
