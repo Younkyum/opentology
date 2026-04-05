@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import type { StoreAdapter } from './store-adapter.js';
 import type { OpenTologyConfig } from './config.js';
 import { getTrackedFiles } from './config.js';
-import { HttpAdapter } from './http-adapter.js';
 import { EmbeddedAdapter } from './embedded-adapter.js';
 import { materializeInferences } from './reasoner.js';
 
@@ -21,10 +20,6 @@ export function resetAdapterCache(): void {
 }
 
 export async function createReadyAdapter(config: OpenTologyConfig): Promise<StoreAdapter> {
-  if (config.mode !== 'embedded') {
-    return new HttpAdapter(config.endpoint ?? 'http://localhost:7878');
-  }
-
   // Reuse cached adapter so data persists across MCP tool calls.
   if (!cachedAdapter) {
     cachedAdapter = new EmbeddedAdapter();
