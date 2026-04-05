@@ -8,7 +8,7 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { loadConfig, saveConfig, configExists, resolveGraphUri } from '../lib/config.js';
+import { loadConfig, saveConfig, configExists, resolveGraphUri, addTrackedFile } from '../lib/config.js';
 import { deepScan } from '../lib/deep-scanner.js';
 import { pushSymbolTriples } from '../lib/deep-scan-triples.js';
 import type { OpenTologyConfig } from '../lib/config.js';
@@ -55,6 +55,28 @@ function resolveConfig(params: { endpoint?: string; graphUri?: string; graph?: s
   } catch {
     throw new Error('No config found. Run opentology init first.');
   }
+}
+
+/**
+ * Persist a named graph to a .ttl file in embedded mode.
+ * Exports the full graph, writes to .opentology/data/{slug}.ttl, and tracks
+ * the file in config — mirroring CLI push behavior.
+ */
+async function persistGraph(adapter: StoreAdapter, config: OpenTologyConfig, graphUri: string): Promise<void> {
+  if (config.mode !== 'embedded') return;
+
+  const exported = await adapter.exportGraph(graphUri);
+  if (!exported.trim()) return;
+
+  // Derive a filename slug from the graph URI
+  const slug = graphUri.replace(/[^a-zA-Z0-9-]/g, '_').replace(/_+/g, '_');
+  const dataDir = join(process.cwd(), '.opentology', 'data');
+  const filePath = join(dataDir, `${slug}.ttl`);
+  mkdirSync(dataDir, { recursive: true });
+  writeFileSync(filePath, exported, 'utf-8');
+
+  addTrackedFile(config, graphUri, filePath);
+  saveConfig(config);
 }
 
 async function handleInit(args: Record<string, unknown>): Promise<unknown> {
@@ -138,6 +160,8 @@ async function handlePush(args: Record<string, unknown>): Promise<unknown> {
   if (infer !== false) {
     inference = await materializeInferences(adapter, graphUri);
   }
+
+  await persistGraph(adapter, config, graphUri);
 
   return {
     success: true,
@@ -246,6 +270,7 @@ async function handleDrop(args: Record<string, unknown>): Promise<unknown> {
 
   const adapter = await createReadyAdapter(config);
   await adapter.dropGraph(graphUri);
+  await persistGraph(adapter, config, graphUri);
   return { success: true, graphUri };
 }
 
@@ -264,6 +289,7 @@ async function handleDelete(args: Record<string, unknown>): Promise<unknown> {
 
   const adapter = await createReadyAdapter(config);
   await adapter.deleteTriples(graphUri, { turtle: content, where });
+  await persistGraph(adapter, config, graphUri);
   return { success: true };
 }
 
@@ -357,6 +383,7 @@ async function handleGraphDrop(args: Record<string, unknown>): Promise<unknown> 
   const adapter = await createReadyAdapter(config);
 
   await adapter.dropGraph(graphUri);
+  await persistGraph(adapter, config, graphUri);
 
   const graphs = config.graphs ?? {};
   delete graphs[name];
@@ -407,6 +434,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       const contextUri = `${config.graphUri}/context`;
       const adapter = await createReadyAdapter(config);
       pushStats = await pushSymbolTriples(adapter, contextUri, scanResult);
+      await persistGraph(adapter, config, contextUri);
     } catch {
       // Non-fatal: push is best-effort
     }
@@ -448,6 +476,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
         `INSERT DATA { GRAPH <${contextUri}> {\n${sparqlTriples.join('\n')}\n} }`
       );
       moduleStats = { modules: dg.modules.length, edges: dg.edges.length };
+      await persistGraph(adapter, config, contextUri);
     }
   } catch {
     // Non-fatal: module triple push is best-effort
@@ -613,6 +642,7 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
       }
       await adapter.sparqlUpdate(`INSERT DATA { GRAPH <${contextUri}> {\n${sparqlTriples.join('\n')}\n} }`);
       moduleStats = { modules: dg.modules.length, edges: dg.edges.length };
+      await persistGraph(adapter, config, contextUri);
       actions.push(`Pushed ${dg.modules.length} Module triples with ${dg.edges.length} dependsOn edges`);
     }
   } catch {
