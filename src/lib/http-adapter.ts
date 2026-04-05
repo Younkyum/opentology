@@ -166,7 +166,8 @@ export class HttpAdapter implements StoreAdapter {
   async diffGraph(
     graphUri: string,
     localTurtle: string,
-  ): Promise<{ added: string[]; removed: string[]; unchanged: number }> {
+    limit = 50,
+  ): Promise<{ added: string[]; removed: string[]; unchanged: number; addedCount: number; removedCount: number; truncated: boolean }> {
     const localQuads = await parseTurtle(localTurtle);
     const localSet = new Set(
       localQuads.map(
@@ -188,11 +189,19 @@ export class HttpAdapter implements StoreAdapter {
       ),
     );
 
-    const added = [...localSet].filter((t) => !remoteSet.has(t));
-    const removed = [...remoteSet].filter((t) => !localSet.has(t));
+    const allAdded = [...localSet].filter((t) => !remoteSet.has(t));
+    const allRemoved = [...remoteSet].filter((t) => !localSet.has(t));
     const unchanged = [...localSet].filter((t) => remoteSet.has(t)).length;
+    const truncated = allAdded.length > limit || allRemoved.length > limit;
 
-    return { added, removed, unchanged };
+    return {
+      added: allAdded.slice(0, limit),
+      removed: allRemoved.slice(0, limit),
+      unchanged,
+      addedCount: allAdded.length,
+      removedCount: allRemoved.length,
+      truncated,
+    };
   }
 
   async getSchemaOverview(graphUri: string): Promise<{

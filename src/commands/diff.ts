@@ -32,7 +32,13 @@ export function registerDiff(program: Command): void {
           console.log(pc.red(`- ${triple}`));
         }
 
-        console.log(`\n${result.added.length} added, ${result.removed.length} removed, ${result.unchanged} unchanged`);
+        const addedLabel = result.truncated && result.addedCount > result.added.length
+          ? `${result.added.length}/${result.addedCount} added (truncated)`
+          : `${result.addedCount} added`;
+        const removedLabel = result.truncated && result.removedCount > result.removed.length
+          ? `${result.removed.length}/${result.removedCount} removed (truncated)`
+          : `${result.removedCount} removed`;
+        console.log(`\n${addedLabel}, ${removedLabel}, ${result.unchanged} unchanged`);
       } catch (err) {
         const message = (err as Error).message;
         if (message.includes('fetch failed') || message.includes('ECONNREFUSED')) {

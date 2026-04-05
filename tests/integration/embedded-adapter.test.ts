@@ -257,6 +257,31 @@ describe('EmbeddedAdapter', () => {
 
       // "unchanged" = present in both
       expect(diff.unchanged).toBe(1);
+
+      // new fields
+      expect(diff.addedCount).toBe(1);
+      expect(diff.removedCount).toBe(1);
+      expect(diff.truncated).toBe(false);
+    });
+
+    it('truncates output when limit is exceeded', async () => {
+      // Insert 5 triples into remote
+      const lines = Array.from({ length: 5 }, (_, i) => `ex:A ex:p ex:R${i} .`);
+      const remote = `@prefix ex: <http://example.org/> .\n${lines.join('\n')}`;
+      await adapter.insertTurtle(GRAPH, remote);
+
+      // Local has 5 different triples — all added, all remote removed
+      const localLines = Array.from({ length: 5 }, (_, i) => `ex:A ex:p ex:L${i} .`);
+      const local = `@prefix ex: <http://example.org/> .\n${localLines.join('\n')}`;
+
+      const diff = await adapter.diffGraph(GRAPH, local, 2);
+
+      expect(diff.added).toHaveLength(2);
+      expect(diff.removed).toHaveLength(2);
+      expect(diff.addedCount).toBe(5);
+      expect(diff.removedCount).toBe(5);
+      expect(diff.unchanged).toBe(0);
+      expect(diff.truncated).toBe(true);
     });
   });
 

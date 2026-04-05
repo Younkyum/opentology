@@ -139,6 +139,9 @@ describe('Workflow: diffGraph scenarios', () => {
     expect(diff.added).toHaveLength(2);
     expect(diff.removed).toHaveLength(0);
     expect(diff.unchanged).toBe(1);
+    expect(diff.addedCount).toBe(2);
+    expect(diff.removedCount).toBe(0);
+    expect(diff.truncated).toBe(false);
   });
 
   it('diff with subset file shows removed triples', async () => {
@@ -162,6 +165,9 @@ describe('Workflow: diffGraph scenarios', () => {
     expect(diff.added).toHaveLength(0);
     expect(diff.removed).toHaveLength(2);
     expect(diff.unchanged).toBe(1);
+    expect(diff.addedCount).toBe(0);
+    expect(diff.removedCount).toBe(2);
+    expect(diff.truncated).toBe(false);
   });
 
   it('diff with identical data shows no changes', async () => {
@@ -180,6 +186,9 @@ describe('Workflow: diffGraph scenarios', () => {
     expect(diff.added).toHaveLength(0);
     expect(diff.removed).toHaveLength(0);
     expect(diff.unchanged).toBe(3);
+    expect(diff.addedCount).toBe(0);
+    expect(diff.removedCount).toBe(0);
+    expect(diff.truncated).toBe(false);
   });
 });
 
