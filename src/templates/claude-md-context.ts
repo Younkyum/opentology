@@ -10,16 +10,17 @@ export function generateContextSection(projectId: string, graphUri: string): str
   return `${MARKER_BEGIN}
 ## Context Management — OpenTology
 
-This project uses OpenTology as its knowledge graph — treat it as the project's **long-term memory**.
-Before reading source files, grep-searching, or making assumptions, **query the graph first**.
-It holds architectural decisions, resolved issues, reusable patterns, module dependencies,
-symbol-level call graphs, and session history. Prefer graph knowledge over re-deriving facts from code.
+<principles>
+- **Graph first** — query the knowledge graph before reading source files or making assumptions.
+- **Always record** — push Session logs at session end; record Knowledge, Decisions, and Issues as they arise.
+- **Auto-ingest** — when the user shares a URL or external source, run the ingest protocol automatically.
+</principles>
 
 ### Graph Structure
 
 | Graph | URI | Purpose |
 |-------|-----|---------|
-| context | \`${contextUri}\` | Decisions, issues, knowledge |
+| context | \`${contextUri}\` | Decisions, issues, knowledge, modules, symbols |
 | sessions | \`${sessionsUri}\` | Session work logs |
 
 ### Ontology (\`otx:\` prefix)
@@ -32,30 +33,12 @@ symbol-level call graphs, and session history. Prefer graph knowledge over re-de
 | \`otx:Knowledge\` | Reusable knowledge |
 | \`otx:Session\` | Session logs |
 | \`otx:Pattern\` | Recurring patterns/conventions |
-| \`otx:Module\` | Source file module |
-| \`otx:Class\` | Class definition (symbol scan) |
-| \`otx:Interface\` | Interface definition (symbol scan) |
-| \`otx:Function\` | Function definition (symbol scan) |
-| \`otx:Method\` | Method definition (symbol scan) |
-| \`otx:MethodCall\` | Call relationship between symbols (symbol scan) |
 | \`otx:Source\` | External knowledge source (article, paper, code, etc.) |
+| \`otx:Module\` | Source file module |
+| \`otx:Class\` / \`otx:Interface\` / \`otx:Function\` / \`otx:Method\` | Symbol-level entities (from deep scan) |
+| \`otx:MethodCall\` | Call relationship between symbols |
 
-| Property | Range | Description |
-|----------|-------|-------------|
-| \`otx:title\` | string | Title |
-| \`otx:date\` | date | Date (YYYY-MM-DD) |
-| \`otx:body\` | string | Body content |
-| \`otx:status\` | string | Status (open/resolved/active) |
-| \`otx:reason\` | string | Decision rationale |
-| \`otx:nextTodo\` | string | Next action item |
-| \`otx:relatedTo\` | resource | Related entity |
-| \`otx:dependsOn\` | Module | Module import dependency |
-| \`otx:definedIn\` | Module | Which module a symbol belongs to |
-| \`otx:callerSymbol\` | string | Caller in a MethodCall |
-| \`otx:calleeSymbol\` | string | Callee in a MethodCall |
-| \`otx:calls\` | resource | Call relationship |
-| \`otx:sourceUrl\` | string | URL or file path of source material |
-| \`otx:sourceType\` | string | Source category (article/paper/code/etc.) |
+Key properties: \`otx:title\`, \`otx:date\`, \`otx:body\`, \`otx:status\`, \`otx:reason\`, \`otx:nextTodo\`, \`otx:relatedTo\`, \`otx:dependsOn\`, \`otx:definedIn\`, \`otx:callerSymbol\`, \`otx:calleeSymbol\`, \`otx:sourceUrl\`, \`otx:sourceType\`. Full schema: use the \`schema\` tool.
 
 ### When to Record
 
@@ -67,142 +50,63 @@ symbol-level call graphs, and session history. Prefer graph knowledge over re-de
 | Source ingested | \`otx:Source\` | context |
 | Session end | \`otx:Session\` | sessions |
 
-### Query Examples
+### Tools & Workflows
+
+#### Before Working
+
+1. **Query graph** — check for existing decisions, knowledge, issues, and sessions related to your task.
+2. **Check impact** — before editing a file, run \`context_impact\` to understand the blast radius (dependents, dependencies, related entities).
+3. **Search** — use \`query\` with SPARQL to find anything: \`?s a otx:Decision\`, \`?s a otx:Knowledge\`, \`?s a otx:Module\`, \`?s a otx:MethodCall\`, etc.
 
 \`\`\`sparql
-# Recent sessions
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?title ?date ?nextTodo WHERE {
-  GRAPH <${sessionsUri}> {
-    ?s a otx:Session ; otx:title ?title ; otx:date ?date .
-    OPTIONAL { ?s otx:nextTodo ?nextTodo }
-  }
-} ORDER BY DESC(?date) LIMIT 5
-
-# Open issues
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?title ?date WHERE {
-  GRAPH <${contextUri}> {
-    ?s a otx:Issue ; otx:title ?title ; otx:date ?date ; otx:status "open" .
-  }
-} ORDER BY DESC(?date)
-\`\`\`
-
-### How to Use OpenTology Tools
-
-OpenTology provides MCP tools to query and manage the project knowledge graph. Use them proactively.
-
-#### Pre-Analysis Context Check
-
-Before exploring code or analyzing architecture, query the knowledge graph for existing context:
-- **Decisions**: past architectural choices that may inform the current analysis
-- **Knowledge**: reusable patterns or lessons already recorded
-- **Issues**: known problems related to the area under investigation
-- **Sessions**: recent work in the same area
-
-\`\`\`sparql
+# Context search (replace "keyword" with your search term)
 PREFIX otx: <https://opentology.dev/vocab#>
 SELECT ?type ?title ?body WHERE {
   GRAPH <${contextUri}> {
     { ?s a otx:Decision ; otx:title ?title ; otx:body ?body . BIND("decision" AS ?type) }
-    UNION
-    { ?s a otx:Knowledge ; otx:title ?title ; otx:body ?body . BIND("knowledge" AS ?type) }
-    UNION
-    { ?s a otx:Issue ; otx:title ?title ; otx:body ?body . BIND("issue" AS ?type) }
+    UNION { ?s a otx:Knowledge ; otx:title ?title ; otx:body ?body . BIND("knowledge" AS ?type) }
+    UNION { ?s a otx:Issue ; otx:title ?title ; otx:body ?body . BIND("issue" AS ?type) }
   }
   FILTER(CONTAINS(LCASE(?title), "keyword") || CONTAINS(LCASE(?body), "keyword"))
 } LIMIT 10
 \`\`\`
 
-This prevents redundant analysis and ensures past decisions and knowledge inform current work.
-
-#### Pre-Edit Impact Check
-
-Before modifying a file, run \`context_impact\` with the target file path to understand the blast radius:
-- **dependents** — modules that import or depend on this file
-- **dependencies** — modules this file imports
-- **related** — decisions, issues, knowledge linked to this file
-- **impact level** — high / medium / low
-
-If impact is **high**, inform the user of affected modules and get confirmation before proceeding.
-
-#### Searching the Knowledge Graph
-
-Use \`query\` with SPARQL to find anything in the project graph. **Always query the graph before reading source files** when investigating code structure, dependencies, or call relationships:
-
-- **Decisions**: \`?s a otx:Decision\` — why architectural choices were made
-- **Issues**: \`?s a otx:Issue ; otx:status "open"\` — known bugs and their status
-- **Knowledge**: \`?s a otx:Knowledge\` — reusable patterns and lessons learned
-- **Sessions**: query the sessions graph for past work logs and next TODOs
-- **Modules**: \`?s a otx:Module\` — all scanned source modules and their dependencies (\`otx:dependsOn\`)
-- **Symbols**: \`?s a otx:Class\`, \`otx:Interface\`, \`otx:Function\`, \`otx:Method\` — code-level entities (available after symbol-depth scan)
-- **Call graph**: \`?s a otx:MethodCall\` — who calls whom (available after symbol scan with \`includeMethodCalls=true\`)
-
-\`\`\`sparql
-# Functions in a specific module
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?name WHERE {
-  GRAPH <${contextUri}> {
-    ?f a otx:Function ; otx:title ?name ; otx:definedIn <urn:module:src/mcp/server> .
-  }
-}
-
-# Who calls a specific function?
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?caller WHERE {
-  GRAPH <${contextUri}> {
-    ?s a otx:MethodCall ; otx:callerSymbol ?caller ; otx:calleeSymbol ?callee .
-    FILTER(CONTAINS(?callee, "persistGraph"))
-  }
-}
-
-# Module dependency chain (what depends on a module?)
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?dependent WHERE {
-  GRAPH <${contextUri}> {
-    ?dependent otx:dependsOn+ <urn:module:src/lib/store-adapter> .
-  }
-}
-\`\`\`
-
 #### Ingesting External Sources
 
-When the user says "ingest [URL/path/text]", follow this protocol:
+When the user shares a URL, file path, or external content, follow this protocol:
 
 1. **Duplicate check** — Query for existing sources with the same URL or title.
-2. **Register** — Push an \\\`otx:Source\\\` with status "pending" using the \\\`push\\\` tool.
+2. **Register** — Push an \`otx:Source\` with status "pending" using the \`push\` tool.
 3. **Read** — Fetch URL content, read file, or use pasted text directly.
-4. **Extract** — Summarize key concepts. Create \\\`otx:Knowledge\\\` triples linked via \\\`otx:relatedTo\\\`.
-5. **Cross-reference** — Query existing graph for related decisions/issues/knowledge. Link via \\\`otx:relatedTo\\\`.
-6. **Contradictions** — If new knowledge contradicts existing entries, create \\\`otx:Issue\\\` with status "open".
+4. **Extract** — Summarize key concepts. Create \`otx:Knowledge\` triples linked via \`otx:relatedTo\`.
+5. **Cross-reference** — Query existing graph for related decisions/issues/knowledge. Link via \`otx:relatedTo\`.
+6. **Contradictions** — If new knowledge contradicts existing entries, create \`otx:Issue\` with status "open".
 7. **Finalize** — Update source status from "pending" to "ingested". Run audit query.
 
-Duplicate check: \\\`SELECT ?s ?title WHERE { GRAPH <\${contextUri}> { ?s a otx:Source ; otx:sourceUrl ?url . FILTER(?url = "URL") } }\\\`
-Audit: \\\`SELECT ?s ?title ?status (COUNT(?k) AS ?knowledgeCount) WHERE { GRAPH <\${contextUri}> { ?s a otx:Source ; otx:title ?title ; otx:status ?status . OPTIONAL { ?k otx:relatedTo ?s } } } GROUP BY ?s ?title ?status\\\`
-Registration: \\\`<urn:source:{slug}> a otx:Source ; otx:title "..." ; otx:sourceUrl "..." ; otx:sourceType "article" ; otx:date "YYYY-MM-DD"^^xsd:date ; otx:status "pending" .\\\`
-Types: article | paper | code | transcript | documentation | video | podcast | book | other. Status: pending → ingested → stale. Recovery: \\\`rollback\\\`.
+Duplicate check: \`SELECT ?s ?title WHERE { GRAPH <${contextUri}> { ?s a otx:Source ; otx:sourceUrl ?url . FILTER(?url = "URL") } }\`
+Audit: \`SELECT ?s ?title ?status (COUNT(?k) AS ?knowledgeCount) WHERE { GRAPH <${contextUri}> { ?s a otx:Source ; otx:title ?title ; otx:status ?status . OPTIONAL { ?k otx:relatedTo ?s } } } GROUP BY ?s ?title ?status\`
+Registration: \`<urn:source:{slug}> a otx:Source ; otx:title "..." ; otx:sourceUrl "..." ; otx:sourceType "article" ; otx:date "YYYY-MM-DD"^^xsd:date ; otx:status "pending" .\`
+Types: article | paper | code | transcript | documentation | video | podcast | book | other. Status: pending → ingested → stale. Recovery: \`rollback\`.
 
-#### Post-Edit Graph Update
+#### After Working
 
-After significant code changes (new files, renamed functions, changed dependencies), run \`context_scan\` to keep the knowledge graph in sync:
-- \`depth="module"\` — fast, updates file-level imports
-- \`depth="symbol"\` with \`includeMethodCalls=true\` — thorough, updates class/function/call graph
+- Run \`context_scan\` after significant code changes (\`depth="module"\` for fast, \`depth="symbol"\` for thorough).
 
-#### Other Useful Tools
+#### Tool Reference
 
 | Tool | When to Use |
 |------|-------------|
 | \`context_load\` | Session start — loads recent sessions, open issues, recent decisions |
-| \`context_scan\` | After significant code changes — rescans module/symbol dependencies |
+| \`context_scan\` | After code changes — rescans module/symbol dependencies |
 | \`context_impact\` | Before editing — checks blast radius of a file change |
-| \`schema\` | Explore ontology classes and properties, or inspect a specific class |
+| \`schema\` | Explore ontology classes and properties |
 | \`query\` | Run any SPARQL query against the project graph |
-| \`push\` | Record decisions, issues, knowledge, or session summaries |
+| \`push\` | Record decisions, issues, knowledge, sources, or session summaries |
 | \`doctor\` | Diagnose project health (config, store, hooks, CLAUDE.md) |
 
-### Session End Reminder
+### Session End
 
-At the end of each session, push a summary:
+Push a summary at the end of each meaningful session:
 
 \`\`\`turtle
 @prefix otx: <https://opentology.dev/vocab#> .
