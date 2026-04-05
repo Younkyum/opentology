@@ -17,6 +17,7 @@ import { registerPrefix } from './commands/prefix.js';
 import { registerContext } from './commands/context.js';
 import { registerViz } from './commands/viz.js';
 import { registerDoctor } from './commands/doctor.js';
+import { registerRollback } from './commands/rollback.js';
 
 const program = new Command();
 program
@@ -41,5 +42,6 @@ registerPrefix(program);
 registerContext(program);
 registerViz(program);
 registerDoctor(program);
+registerRollback(program);
 
 program.parse(process.argv);

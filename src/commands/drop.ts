@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 import { loadConfig, resolveGraphUri, saveConfig } from '../lib/config.js';
 import { createReadyAdapter } from '../lib/store-factory.js';
+import { snapshotGraph } from '../lib/snapshot.js';
 
 export function registerDrop(program: Command): void {
   program
@@ -29,6 +30,7 @@ export function registerDrop(program: Command): void {
 
       try {
         const adapter = await createReadyAdapter(config);
+        await snapshotGraph(adapter, config, graphUri);
         await adapter.dropGraph(graphUri);
 
         // In embedded mode, clear tracked files for this graph
