@@ -28,9 +28,24 @@ import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
 import { generateContextSection, updateClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
 import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
+import { generateUserPromptHookScript } from '../templates/user-prompt-hook.js';
+import { generatePostErrorHookScript } from '../templates/post-error-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
-import type { ContextLoadOutput } from '../commands/context.js';
-import { runDoctor } from '../commands/doctor.js';
+import { runDoctor } from '../lib/doctor.js';
+
+export interface ContextLoadOutput {
+  projectId: string;
+  graphUri: string;
+  sessions: Array<{ uri: string; title: string; date: string; nextTodo?: string }>;
+  openIssues: Array<{ uri: string; title: string; date: string }>;
+  recentDecisions: Array<{ uri: string; title: string; date: string; reason?: string }>;
+  meta: {
+    contextTripleCount: number;
+    sessionsTripleCount: number;
+    loadedAt: string;
+  };
+  warnings?: string[];
+}
 import { syncContext } from '../lib/context-sync.js';
 import { scanCodebase } from '../lib/codebase-scanner.js';
 import { startGraphServer } from '../lib/graph-server.js';
@@ -579,6 +594,20 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     actions.push('Generated hook: .opentology/hooks/pre-edit.mjs');
   }
 
+  const userPromptHookPath = join(hookDir, 'user-prompt.mjs');
+  if (!existsSync(userPromptHookPath) || force) {
+    mkdirSync(hookDir, { recursive: true });
+    writeFileSync(userPromptHookPath, generateUserPromptHookScript(), 'utf-8');
+    actions.push('Generated hook: .opentology/hooks/user-prompt.mjs');
+  }
+
+  const postErrorHookPath = join(hookDir, 'post-error.mjs');
+  if (!existsSync(postErrorHookPath) || force) {
+    mkdirSync(hookDir, { recursive: true });
+    writeFileSync(postErrorHookPath, generatePostErrorHookScript(), 'utf-8');
+    actions.push('Generated hook: .opentology/hooks/post-error.mjs');
+  }
+
   // Update CLAUDE.md
   const claudeMdPath = join(process.cwd(), 'CLAUDE.md');
   const section = generateContextSection(config.projectId, config.graphUri);
@@ -653,6 +682,42 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     hooks.PreToolUse.push({
       matcher: 'Edit|Write',
       hooks: [{ type: 'command', command: preEditCmd }],
+    });
+    hooksChanged = true;
+  }
+
+  // UserPromptSubmit: keyword-based context search
+  const userPromptCmd = 'node .opentology/hooks/user-prompt.mjs';
+  if (!hooks.UserPromptSubmit) hooks.UserPromptSubmit = [];
+  const hasUserPromptHook = hooks.UserPromptSubmit.some(
+    (h: unknown) => {
+      const entry = h as Record<string, unknown>;
+      const entryHooks = entry.hooks as Array<Record<string, string>> | undefined;
+      return entryHooks?.some((hook) => hook.command === userPromptCmd);
+    }
+  );
+  if (!hasUserPromptHook) {
+    hooks.UserPromptSubmit.push({
+      matcher: '',
+      hooks: [{ type: 'command', command: userPromptCmd }],
+    });
+    hooksChanged = true;
+  }
+
+  // PostToolUse: error pattern matching on Bash
+  const postErrorCmd = 'node .opentology/hooks/post-error.mjs';
+  if (!hooks.PostToolUse) hooks.PostToolUse = [];
+  const hasPostErrorHook = hooks.PostToolUse.some(
+    (h: unknown) => {
+      const entry = h as Record<string, unknown>;
+      const entryHooks = entry.hooks as Array<Record<string, string>> | undefined;
+      return entryHooks?.some((hook) => hook.command === postErrorCmd);
+    }
+  );
+  if (!hasPostErrorHook) {
+    hooks.PostToolUse.push({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: postErrorCmd }],
     });
     hooksChanged = true;
   }
@@ -808,6 +873,62 @@ async function handleContextLoad(): Promise<ContextLoadOutput> {
 
   if (output.warnings!.length === 0) delete output.warnings;
   return output;
+}
+
+async function handleContextSearch(args: Record<string, unknown>): Promise<unknown> {
+  const keywords = args.keywords as string[];
+  if (!keywords || keywords.length === 0) throw new Error('keywords is required (array of strings)');
+
+  const types = (args.types as string[] | undefined) ?? ['Issue', 'Decision', 'Knowledge', 'Pattern'];
+  const limit = (args.limit as number | undefined) ?? 10;
+
+  const config = loadConfig();
+  const contextUri = `${config.graphUri}/context`;
+  const OTX = 'https://opentology.dev/vocab#';
+  const adapter = await createReadyAdapter(config);
+
+  const typeFilter = types.map(t => `<${OTX}${t}>`).join(', ');
+  const keywordFilters = keywords.map(kw => {
+    const escaped = kw.toLowerCase().replace(/"/g, '\\"');
+    return `CONTAINS(LCASE(?title), "${escaped}") || CONTAINS(LCASE(COALESCE(?body, "")), "${escaped}")`;
+  });
+  const filterClause = keywordFilters.join(' || ');
+
+  const sparql = `
+    PREFIX otx: <${OTX}>
+    SELECT ?type ?title ?body ?status ?date ?solution ?cause ?reason WHERE {
+      GRAPH <${contextUri}> {
+        ?s a ?type .
+        ?s otx:title ?title .
+        OPTIONAL { ?s otx:body ?body }
+        OPTIONAL { ?s otx:status ?status }
+        OPTIONAL { ?s otx:date ?date }
+        OPTIONAL { ?s otx:solution ?solution }
+        OPTIONAL { ?s otx:cause ?cause }
+        OPTIONAL { ?s otx:reason ?reason }
+        FILTER(
+          ?type IN (${typeFilter})
+          && (${filterClause})
+        )
+      }
+    } ORDER BY DESC(?date) LIMIT ${limit}
+  `;
+
+  const result = await adapter.sparqlQuery(sparql);
+  const results = (result.results?.bindings ?? []).map(
+    (b: Record<string, { value: string }>) => ({
+      type: b.type?.value ?? '',
+      title: b.title?.value ?? '',
+      body: b.body?.value,
+      status: b.status?.value,
+      date: b.date?.value,
+      solution: b.solution?.value,
+      cause: b.cause?.value,
+      reason: b.reason?.value,
+    })
+  );
+
+  return { keywords, results };
 }
 
 async function handleContextImpact(args: Record<string, unknown>): Promise<unknown> {
@@ -1334,6 +1455,30 @@ export async function startMcpServer(): Promise<void> {
         },
       },
       {
+        name: 'context_search',
+        description: 'Search the knowledge graph by keywords. Searches across Issues, Decisions, Knowledge, and Patterns by matching keywords against titles and bodies. Use this to find relevant context before investigating code.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            keywords: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Keywords to search for (matched with OR logic against title and body).',
+            },
+            types: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'OTX types to search (default: Issue, Decision, Knowledge, Pattern). Use short names without prefix.',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum results (default: 10).',
+            },
+          },
+          required: ['keywords'],
+        },
+      },
+      {
         name: 'context_status',
         description: 'Check whether project context is initialized. Shows graph triple counts, hook script presence, and CLAUDE.md marker status.',
         inputSchema: {
@@ -1535,6 +1680,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case 'context_load':
           result = await handleContextLoad();
+          break;
+        case 'context_search':
+          result = await handleContextSearch(args as Record<string, unknown>);
           break;
         case 'context_status':
           result = await handleContextStatus();

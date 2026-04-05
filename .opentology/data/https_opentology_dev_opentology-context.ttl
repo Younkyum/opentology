@@ -1,0 +1,360 @@
+<https://opentology.dev/opentology-context/cmd-init> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-validate> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-push> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-query> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-status> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-pull> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-drop> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-delete> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-diff> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-shapes> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-infer> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/cmd-graph> a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/store-adapter> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/http-adapter> a <https://opentology.dev/ontology/Component>, <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/embedded-adapter> a <https://opentology.dev/ontology/Component>, <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/config-module> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/validator-module> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/shacl-module> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/reasoner-module> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/sparql-utils> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/store-factory> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-init> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-validate> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-push> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-query> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-status> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-pull> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-drop> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-delete> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-diff> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-shapes> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-infer> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-graph> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-mcp> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-init> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-validate> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-push> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-query> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-status> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-pull> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-drop> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-delete> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-diff> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-schema> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/tool-infer> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/resource-schema> a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/issue-1> a <https://opentology.dev/ontology/Issue>.
+<https://opentology.dev/opentology-context/issue-2> a <https://opentology.dev/ontology/Issue>.
+<https://opentology.dev/opentology-context/issue-3> a <https://opentology.dev/ontology/Issue>.
+<https://opentology.dev/opentology-context/issue-4> a <https://opentology.dev/ontology/Issue>.
+<https://opentology.dev/ontology/Adapter> <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/issue-4> <https://opentology.dev/ontology/status> "resolved";
+    <https://opentology.dev/ontology/discoveredDuring> "dogfooding: context graph status";
+    <https://opentology.dev/ontology/affectsComponent> <https://opentology.dev/opentology-context/cmd-status>;
+    <https://opentology.dev/ontology/severity> "low";
+    <http://schema.org/description> "Added 'Tracked files: N' line to status output when in embedded mode.";
+    <http://schema.org/name> "Status shows tracked file count in embedded mode";
+    a <https://opentology.dev/ontology/Enhancement>.
+<https://opentology.dev/opentology-context/issue-3> <https://opentology.dev/ontology/status> "resolved";
+    <https://opentology.dev/ontology/discoveredDuring> "dogfooding: context graph query";
+    <https://opentology.dev/ontology/affectsComponent> <https://opentology.dev/opentology-context/cmd-query>;
+    <https://opentology.dev/ontology/severity> "medium";
+    <http://schema.org/description> "Added prefixes field to config, default prefixes on init, opentology prefix list/add/remove command, auto-injection into SPARQL queries.";
+    <http://schema.org/name> "Project-level PREFIX registry for query shorthand";
+    a <https://opentology.dev/ontology/Enhancement>.
+<https://opentology.dev/opentology-context/issue-2> <https://opentology.dev/ontology/status> "resolved";
+    <https://opentology.dev/ontology/discoveredDuring> "dogfooding: context graph push";
+    <https://opentology.dev/ontology/affectsComponent> <https://opentology.dev/opentology-context/cmd-push>;
+    <https://opentology.dev/ontology/severity> "low";
+    <http://schema.org/description> "Already working correctly — hasShapes() returns false when shapes/ doesn't exist, silently skipping SHACL. No code change needed.";
+    <http://schema.org/name> "push auto-detect no shapes/ dir";
+    a <https://opentology.dev/ontology/Enhancement>.
+<https://opentology.dev/opentology-context/issue-1> <https://opentology.dev/ontology/status> "resolved";
+    <https://opentology.dev/ontology/discoveredDuring> "dogfooding: context graph query";
+    <https://opentology.dev/ontology/affectsComponent> <https://opentology.dev/opentology-context/cmd-query>;
+    <https://opentology.dev/ontology/severity> "medium";
+    <http://schema.org/description> "zsh/bash interprets ! as history expansion. Not a code bug — added helpful error hint suggesting $'...' quoting or FILTER NOT IN syntax.";
+    <http://schema.org/name> "Shell escapes ! in SPARQL FILTER queries";
+    a <https://opentology.dev/ontology/Bug>.
+<https://opentology.dev/ontology/status> <http://www.w3.org/2000/01/rdf-schema#label> "status";
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Issue>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/discoveredDuring> <http://www.w3.org/2000/01/rdf-schema#label> "discovered during";
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Issue>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/affectsComponent> <http://www.w3.org/2000/01/rdf-schema#range> <https://opentology.dev/ontology/Component>;
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Issue>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/severity> <http://www.w3.org/2000/01/rdf-schema#label> "severity";
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Issue>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/Enhancement> <http://www.w3.org/2000/01/rdf-schema#label> "Enhancement";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Issue>.
+<https://opentology.dev/ontology/Bug> <http://www.w3.org/2000/01/rdf-schema#label> "Bug";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Issue>.
+<https://opentology.dev/ontology/Issue> <http://www.w3.org/2000/01/rdf-schema#label> "Issue";
+    a <http://www.w3.org/2000/01/rdf-schema#Class>.
+<https://opentology.dev/opentology-context/opentology> <http://schema.org/url> "https://github.com/Younkyum/opentology";
+    <http://schema.org/version> "0.1.0";
+    <http://schema.org/license> "MIT";
+    <http://schema.org/applicationCategory> "Developer Tools";
+    <http://schema.org/programmingLanguage> "TypeScript";
+    <http://schema.org/description> "CLI-managed RDF/SPARQL infrastructure — Supabase for RDF";
+    <http://schema.org/name> "OpenTology";
+    a <http://schema.org/SoftwareApplication>.
+<https://opentology.dev/opentology-context/feat-mcp> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <http://schema.org/description> "AI agents use OpenTology as native tools";
+    <http://schema.org/name> "MCP Integration";
+    a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/feat-auto-scope> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <http://schema.org/description> "SPARQL queries automatically scoped to project graph";
+    <http://schema.org/name> "Auto Graph Scoping";
+    a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/feat-shacl> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase2>;
+    <http://schema.org/description> "Shape constraints validated on push";
+    <http://schema.org/name> "SHACL Validation";
+    a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/feat-rdfs> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase5>;
+    <http://schema.org/description> "subClassOf, subPropertyOf, domain, range inference";
+    <http://schema.org/name> "RDFS Reasoning";
+    a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/feat-embedded> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/embedded>;
+    <http://schema.org/description> "In-process WASM store, no Docker required";
+    <http://schema.org/name> "Embedded Mode";
+    a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/feat-adapter-pattern> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/embedded>;
+    <http://schema.org/description> "HTTP and embedded modes share a common interface";
+    <http://schema.org/name> "StoreAdapter Pattern";
+    a <https://opentology.dev/ontology/Feature>.
+<https://opentology.dev/opentology-context/resource-schema> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/description> "Ontology schema overview — prefixes, classes, properties";
+    <http://schema.org/name> "opentology://schema";
+    a <https://opentology.dev/ontology/MCPResource>.
+<https://opentology.dev/opentology-context/tool-infer> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_infer";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-schema> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_schema";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-diff> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_diff";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-delete> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_delete";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-drop> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_drop";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-pull> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_pull";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-status> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_status";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-query> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_query";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-push> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_push";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-validate> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_validate";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/tool-init> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <http://schema.org/name> "opentology_init";
+    a <https://opentology.dev/ontology/MCPTool>.
+<https://opentology.dev/opentology-context/mcp-server> <https://opentology.dev/ontology/implementedIn> <https://opentology.dev/opentology-context/mcp-sdk>;
+    <https://opentology.dev/ontology/hasFile> "src/mcp/server.ts";
+    <http://schema.org/name> "MCP Server";
+    a <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/opentology-context/cmd-mcp> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/mcp-server>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/mcp.ts";
+    <http://schema.org/description> "Start MCP server for AI agent integration";
+    <http://schema.org/name> "mcp";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-graph> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase4>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/graph.ts";
+    <http://schema.org/description> "Manage named graphs";
+    <http://schema.org/name> "graph";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-infer> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase5>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/reasoner-module>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/infer.ts";
+    <http://schema.org/description> "Materialize RDFS inferred triples";
+    <http://schema.org/name> "infer";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-shapes> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase2>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/shapes.ts";
+    <http://schema.org/description> "List and inspect SHACL shapes";
+    <http://schema.org/name> "shapes";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-diff> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase3>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/diff.ts";
+    <http://schema.org/description> "Compare local Turtle file vs graph state";
+    <http://schema.org/name> "diff";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-delete> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase1>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/delete.ts";
+    <http://schema.org/description> "Delete specific triples";
+    <http://schema.org/name> "delete";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-drop> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase1>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/drop.ts";
+    <http://schema.org/description> "Delete entire graph";
+    <http://schema.org/name> "drop";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-pull> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/pull.ts";
+    <http://schema.org/description> "Export graph as Turtle";
+    <http://schema.org/name> "pull";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-status> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/status.ts";
+    <http://schema.org/description> "Show project status and triple counts";
+    <http://schema.org/name> "status";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-query> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/sparql-utils>, <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/query.ts";
+    <http://schema.org/description> "Execute SPARQL with auto Named Graph scoping";
+    <http://schema.org/name> "query";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-push> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/reasoner-module>, <https://opentology.dev/opentology-context/shacl-module>, <https://opentology.dev/opentology-context/store-factory>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/push.ts";
+    <http://schema.org/description> "Push Turtle file to triplestore with --replace and SHACL auto-validation";
+    <http://schema.org/name> "push";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-validate> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/shacl-module>, <https://opentology.dev/opentology-context/validator-module>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/validate.ts";
+    <http://schema.org/description> "Validate Turtle syntax and SHACL shapes";
+    <http://schema.org/name> "validate";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/cmd-init> <https://opentology.dev/ontology/partOfPhase> <https://opentology.dev/opentology-context/phase0>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/config-module>;
+    <https://opentology.dev/ontology/hasFile> "src/commands/init.ts";
+    <http://schema.org/description> "Initialize a new OpenTology project";
+    <http://schema.org/name> "init";
+    a <https://opentology.dev/ontology/CLICommand>.
+<https://opentology.dev/opentology-context/store-factory> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/config-module>, <https://opentology.dev/opentology-context/embedded-adapter>, <https://opentology.dev/opentology-context/http-adapter>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/store-factory.ts";
+    <http://schema.org/name> "Store Factory";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/sparql-utils> <https://opentology.dev/ontology/hasFile> "src/lib/sparql-utils.ts";
+    <http://schema.org/name> "SPARQL Utils";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/reasoner-module> <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-adapter>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/reasoner.ts";
+    <http://schema.org/name> "RDFS Reasoner";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/shacl-module> <https://opentology.dev/ontology/implementedIn> <https://opentology.dev/opentology-context/shacl-engine>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/shacl.ts";
+    <http://schema.org/name> "SHACL Validator";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/validator-module> <https://opentology.dev/ontology/implementedIn> <https://opentology.dev/opentology-context/n3js>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/validator.ts";
+    <http://schema.org/name> "Validator";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/config-module> <https://opentology.dev/ontology/hasFile> "src/lib/config.ts";
+    <http://schema.org/name> "Config";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/embedded-adapter> <https://opentology.dev/ontology/implementedIn> <https://opentology.dev/opentology-context/oxigraph-wasm>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-adapter>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/embedded-adapter.ts";
+    <http://schema.org/name> "EmbeddedAdapter";
+    a <https://opentology.dev/ontology/Adapter>.
+<https://opentology.dev/opentology-context/http-adapter> <https://opentology.dev/ontology/implementedIn> <https://opentology.dev/opentology-context/typescript>;
+    <https://opentology.dev/ontology/dependsOn> <https://opentology.dev/opentology-context/store-adapter>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/http-adapter.ts";
+    <http://schema.org/name> "HttpAdapter";
+    a <https://opentology.dev/ontology/Adapter>.
+<https://opentology.dev/opentology-context/store-adapter> <https://opentology.dev/ontology/provides> <https://opentology.dev/opentology-context/feat-adapter-pattern>;
+    <https://opentology.dev/ontology/hasFile> "src/lib/store-adapter.ts";
+    <http://schema.org/name> "StoreAdapter";
+    a <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/opentology-context/embedded> <http://schema.org/version> "v0.6.1";
+    <http://schema.org/name> "Embedded Mode";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/phase5> <http://schema.org/version> "v0.6.0";
+    <http://schema.org/name> "Phase 5: RDFS Reasoning";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/phase4> <http://schema.org/version> "v0.5.0";
+    <http://schema.org/name> "Phase 4: Multi-Graph";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/phase3> <http://schema.org/version> "v0.4.0";
+    <http://schema.org/name> "Phase 3: DX Polish";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/phase2> <http://schema.org/version> "v0.3.0";
+    <http://schema.org/name> "Phase 2: SHACL Validation";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/phase1> <http://schema.org/version> "v0.2.0";
+    <http://schema.org/name> "Phase 1: Complete CRUD";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/phase0> <http://schema.org/version> "v0.1.1";
+    <http://schema.org/name> "Phase 0: Launch Infrastructure";
+    a <https://opentology.dev/ontology/Phase>.
+<https://opentology.dev/opentology-context/picocolors> <http://schema.org/name> "picocolors";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/vitest> <http://schema.org/name> "Vitest";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/rdf-ext> <http://schema.org/name> "rdf-ext";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/shacl-engine> <http://schema.org/name> "shacl-engine";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/mcp-sdk> <http://schema.org/name> "@modelcontextprotocol/sdk";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/oxigraph-server> <http://schema.org/name> "Oxigraph Server";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/oxigraph-wasm> <http://schema.org/name> "Oxigraph WASM";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/n3js> <http://schema.org/name> "n3.js";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/commanderjs> <http://schema.org/name> "commander.js";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/opentology-context/typescript> <http://schema.org/name> "TypeScript";
+    a <https://opentology.dev/ontology/Technology>.
+<https://opentology.dev/ontology/provides> <http://www.w3.org/2000/01/rdf-schema#label> "provides";
+    <http://www.w3.org/2000/01/rdf-schema#range> <https://opentology.dev/ontology/Feature>;
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Component>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/hasFile> <http://www.w3.org/2000/01/rdf-schema#label> "source file";
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Component>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/partOfPhase> <http://www.w3.org/2000/01/rdf-schema#label> "part of phase";
+    <http://www.w3.org/2000/01/rdf-schema#range> <https://opentology.dev/ontology/Phase>;
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Feature>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/implementedIn> <http://www.w3.org/2000/01/rdf-schema#label> "implemented in";
+    <http://www.w3.org/2000/01/rdf-schema#range> <https://opentology.dev/ontology/Technology>;
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Component>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/dependsOn> <http://www.w3.org/2000/01/rdf-schema#label> "depends on";
+    <http://www.w3.org/2000/01/rdf-schema#range> <https://opentology.dev/ontology/Component>;
+    <http://www.w3.org/2000/01/rdf-schema#domain> <https://opentology.dev/ontology/Component>;
+    a <http://www.w3.org/2000/01/rdf-schema#Property>.
+<https://opentology.dev/ontology/Technology> <http://www.w3.org/2000/01/rdf-schema#label> "Technology";
+    a <http://www.w3.org/2000/01/rdf-schema#Class>.
+<https://opentology.dev/ontology/Phase> <http://www.w3.org/2000/01/rdf-schema#label> "Development Phase";
+    a <http://www.w3.org/2000/01/rdf-schema#Class>.
+<https://opentology.dev/ontology/Feature> <http://www.w3.org/2000/01/rdf-schema#label> "Feature";
+    a <http://www.w3.org/2000/01/rdf-schema#Class>.
+<https://opentology.dev/ontology/Adapter> <http://www.w3.org/2000/01/rdf-schema#label> "Store Adapter";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/LibModule>.
+<https://opentology.dev/ontology/LibModule> <http://www.w3.org/2000/01/rdf-schema#label> "Library Module";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/ontology/MCPResource> <http://www.w3.org/2000/01/rdf-schema#label> "MCP Resource";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/ontology/MCPTool> <http://www.w3.org/2000/01/rdf-schema#label> "MCP Tool";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/ontology/CLICommand> <http://www.w3.org/2000/01/rdf-schema#label> "CLI Command";
+    <http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://opentology.dev/ontology/Component>.
+<https://opentology.dev/ontology/Component> <http://www.w3.org/2000/01/rdf-schema#label> "Component";
+    a <http://www.w3.org/2000/01/rdf-schema#Class>.
