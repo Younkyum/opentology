@@ -664,7 +664,7 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     if (!config.files[contextUri].includes(relPath)) {
       config.files[contextUri].push(relPath);
     }
-    actions.push('Bootstrapped otx ontology (6 classes, 12 properties)');
+    actions.push('Bootstrapped otx ontology (13 classes, 24 properties)');
   }
 
   // Generate hook script
