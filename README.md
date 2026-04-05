@@ -2,6 +2,8 @@
 
 > Ontology-powered project memory for AI coding assistants — your codebase as a knowledge graph
 
+[![npm](https://img.shields.io/npm/v/opentology)](https://www.npmjs.com/package/opentology) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Live Demo](https://img.shields.io/badge/Live_Demo-opentology.dev-6c63ff)](https://opentology.dev)
+
 [English](#english) | [한국어](#한국어)
 
 ---
@@ -13,6 +15,8 @@ Most MCP servers give AI assistants tools. OpenTology gives them **understanding
 When you connect OpenTology to Claude Code (or any MCP client), it doesn't just expose SPARQL queries — it builds a persistent knowledge graph of your project: module dependencies, architectural decisions, resolved bugs, session history, and code-level symbols. Then it **automatically instructs** the AI to check impact before editing, search past decisions before choosing, and record what it learns.
 
 The result: an AI assistant that remembers across sessions, understands your codebase structure, and thinks before it acts.
+
+**[See the live knowledge graph at opentology.dev](https://opentology.dev)** — OpenTology scanning its own codebase: 67 modules, 234 call relations, fully interactive.
 
 ### How It Works
 
@@ -293,6 +297,8 @@ MIT
 OpenTology를 Claude Code(또는 MCP 호환 클라이언트)에 연결하면, 단순히 SPARQL 쿼리를 노출하는 것이 아니라 프로젝트의 영속적인 지식 그래프를 구축합니다: 모듈 의존성, 아키텍처 의사결정, 해결된 버그, 세션 이력, 코드 수준의 심볼까지. 그리고 AI가 **자동으로** 편집 전에 영향도를 확인하고, 의사결정 전에 과거 기록을 검색하고, 배운 것을 기록하도록 **지침을 주입**합니다.
 
 결과: 세션을 넘어 기억하고, 코드베이스 구조를 이해하며, 행동 전에 생각하는 AI 어시스턴트.
+
+**[opentology.dev에서 라이브 지식 그래프 확인](https://opentology.dev)** — OpenTology가 자기 자신의 코드베이스를 스캔한 결과: 67개 모듈, 234개 호출 관계, 인터랙티브 탐색 가능.
 
 ### 작동 방식
 

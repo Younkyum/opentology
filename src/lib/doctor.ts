@@ -1,11 +1,9 @@
-import { Command } from 'commander';
-import pc from 'picocolors';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { configExists, loadConfig } from '../lib/config.js';
-import { createReadyAdapter } from '../lib/store-factory.js';
+import { configExists, loadConfig } from './config.js';
+import { createReadyAdapter } from './store-factory.js';
 
-interface CheckResult {
+export interface CheckResult {
   name: string;
   status: 'ok' | 'warn' | 'fail';
   message: string;
@@ -106,38 +104,4 @@ export async function runDoctor(): Promise<CheckResult[]> {
   }
 
   return results;
-}
-
-export function registerDoctor(program: Command): void {
-  program
-    .command('doctor')
-    .description('Check project health: config, store, context, hooks, dependencies')
-    .option('--format <type>', 'Output format: table, json', 'table')
-    .action(async (opts: { format: string }) => {
-      const results = await runDoctor();
-
-      if (opts.format === 'json') {
-        console.log(JSON.stringify(results, null, 2));
-        return;
-      }
-
-      console.log(pc.bold('\nOpenTology Doctor\n'));
-      for (const r of results) {
-        const icon = r.status === 'ok' ? pc.green('✓') : r.status === 'warn' ? pc.yellow('!') : pc.red('✗');
-        const msg = r.status === 'fail' ? pc.red(r.message) : r.status === 'warn' ? pc.yellow(r.message) : r.message;
-        console.log(`  ${icon} ${pc.bold(r.name)}: ${msg}`);
-      }
-
-      const fails = results.filter((r) => r.status === 'fail').length;
-      const warns = results.filter((r) => r.status === 'warn').length;
-      console.log('');
-      if (fails > 0) {
-        console.log(pc.red(`  ${fails} error(s), ${warns} warning(s)`));
-        process.exit(1);
-      } else if (warns > 0) {
-        console.log(pc.yellow(`  ${warns} warning(s), everything else looks good`));
-      } else {
-        console.log(pc.green('  All checks passed!'));
-      }
-    });
 }
