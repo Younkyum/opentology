@@ -30,6 +30,7 @@ import { generateHookScript } from '../templates/session-start-hook.js';
 import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateUserPromptHookScript } from '../templates/user-prompt-hook.js';
 import { generatePostErrorHookScript } from '../templates/post-error-hook.js';
+import { generateStopSessionHookScript } from '../templates/stop-session-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import { runDoctor } from '../lib/doctor.js';
 
@@ -698,6 +699,13 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     actions.push('Generated hook: .opentology/hooks/post-error.mjs');
   }
 
+  const stopSessionHookPath = join(hookDir, 'stop-session-reminder.mjs');
+  if (!existsSync(stopSessionHookPath) || force) {
+    mkdirSync(hookDir, { recursive: true });
+    writeFileSync(stopSessionHookPath, generateStopSessionHookScript(), 'utf-8');
+    actions.push('Generated hook: .opentology/hooks/stop-session-reminder.mjs');
+  }
+
   // Update CLAUDE.md
   const claudeMdPath = join(process.cwd(), 'CLAUDE.md');
   const section = generateContextSection(config.projectId, config.graphUri);
@@ -808,6 +816,24 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     hooks.PostToolUse.push({
       matcher: 'Bash',
       hooks: [{ type: 'command', command: postErrorCmd }],
+    });
+    hooksChanged = true;
+  }
+
+  // Stop: session log + knowledge reminder
+  const stopSessionCmd = 'node .opentology/hooks/stop-session-reminder.mjs';
+  if (!hooks.Stop) hooks.Stop = [];
+  const hasStopHook = hooks.Stop.some(
+    (h: unknown) => {
+      const entry = h as Record<string, unknown>;
+      const entryHooks = entry.hooks as Array<Record<string, string>> | undefined;
+      return entryHooks?.some((hook) => hook.command === stopSessionCmd);
+    }
+  );
+  if (!hasStopHook) {
+    hooks.Stop.push({
+      matcher: '',
+      hooks: [{ type: 'command', command: stopSessionCmd }],
     });
     hooksChanged = true;
   }
