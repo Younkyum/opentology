@@ -435,10 +435,12 @@ async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
   if (clear) {
     await snapshotGraph(adapter, config, graphUri);
     await clearInferences(adapter, graphUri);
+    await persistGraph(adapter, config, graphUri);
     return { success: true, cleared: true };
   }
 
   const result: InferenceResult = await materializeInferences(adapter, graphUri);
+  await persistGraph(adapter, config, graphUri);
   return result;
 }
 
@@ -1545,9 +1547,12 @@ export async function startMcpServer(): Promise<void> {
         case 'context_sync': {
           const syncConfig = loadConfig();
           const syncContextUri = `${syncConfig.graphUri}/context`;
+          const syncSessionsUri = `${syncConfig.graphUri}/sessions`;
           const syncAdapter = await createReadyAdapter(syncConfig);
           await snapshotGraph(syncAdapter, syncConfig, syncContextUri);
           result = await syncContext(syncConfig, process.cwd());
+          await persistGraph(syncAdapter, syncConfig, syncContextUri);
+          await persistGraph(syncAdapter, syncConfig, syncSessionsUri);
           break;
         }
         case 'rollback':
