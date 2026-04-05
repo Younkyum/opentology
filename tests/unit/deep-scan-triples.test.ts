@@ -3,6 +3,7 @@ import { Parser } from 'n3';
 import {
   generateSymbolTriples,
   batchTriples,
+  pushSymbolTriples,
 } from '../../src/lib/deep-scan-triples.js';
 import type { DeepScanResult } from '../../src/lib/deep-scanner.js';
 
@@ -14,6 +15,7 @@ function makeResult(overrides?: Partial<DeepScanResult>): DeepScanResult {
     functions: [],
     methodCalls: [],
     unsupportedFiles: [],
+    languageHints: [],
     fileCount: 1,
     symbolCount: 0,
     scanDurationMs: 100,
@@ -214,25 +216,85 @@ describe('generateSymbolTriples', () => {
 });
 
 describe('batchTriples', () => {
-  it('splits 350 triples into 4 batches of max 100', () => {
+  it('uses default batch size of 25', () => {
+    const triples = Array.from({ length: 60 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o> .`);
+    const batches = batchTriples(triples);
+    expect(batches.length).toBe(3);
+    expect(batches[0].length).toBe(25);
+    expect(batches[1].length).toBe(25);
+    expect(batches[2].length).toBe(10);
+  });
+
+  it('splits with custom batch size', () => {
     const triples = Array.from({ length: 350 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o> .`);
     const batches = batchTriples(triples, 100);
     expect(batches.length).toBe(4);
     expect(batches[0].length).toBe(100);
-    expect(batches[1].length).toBe(100);
-    expect(batches[2].length).toBe(100);
     expect(batches[3].length).toBe(50);
   });
 
   it('returns single batch for small input', () => {
     const triples = ['<urn:a> <urn:b> <urn:c> .'];
-    const batches = batchTriples(triples, 100);
+    const batches = batchTriples(triples);
     expect(batches.length).toBe(1);
     expect(batches[0].length).toBe(1);
   });
 
   it('returns empty array for empty input', () => {
-    const batches = batchTriples([], 100);
+    const batches = batchTriples([]);
     expect(batches.length).toBe(0);
+  });
+});
+
+describe('pushSymbolTriples', () => {
+  it('reports partial failure with retry hint', async () => {
+    let insertCount = 0;
+    const mockAdapter = {
+      sparqlUpdate: async (query: string) => {
+        if (query.startsWith('DELETE')) return;
+        insertCount++;
+        // Fail every 2nd INSERT batch
+        if (insertCount % 2 === 0) throw new Error('Oxigraph parse error');
+      },
+    };
+
+    const result = makeResult({
+      classes: Array.from({ length: 5 }, (_, i) => ({
+        name: `Class${i}`,
+        filePath: `src/c${i}`,
+        baseClass: null,
+        interfaces: [],
+        methods: [{ name: 'run', returnType: 'void', parameters: [] }],
+        isAbstract: false,
+      })),
+    });
+
+    const pushResult = await pushSymbolTriples(mockAdapter, 'http://test/graph', result);
+
+    expect(pushResult.triplesInserted).toBeGreaterThan(0);
+    expect(pushResult.batchesFailed).toBeGreaterThan(0);
+    expect(pushResult.triplesFailed).toBeGreaterThan(0);
+    expect(pushResult.errors.length).toBeGreaterThan(0);
+    expect(pushResult.errors[0]).toContain('Oxigraph parse error');
+    expect(pushResult.retryHint).toBeTruthy();
+    expect(pushResult.retryHint).toContain('Re-run context_scan');
+  });
+
+  it('reports full success with no retry hint', async () => {
+    const mockAdapter = {
+      sparqlUpdate: async () => {},
+    };
+
+    const result = makeResult({
+      functions: [{ name: 'foo', filePath: 'src/foo', returnType: 'void', parameters: [], isExported: true }],
+    });
+
+    const pushResult = await pushSymbolTriples(mockAdapter, 'http://test/graph', result);
+
+    expect(pushResult.triplesInserted).toBeGreaterThan(0);
+    expect(pushResult.triplesFailed).toBe(0);
+    expect(pushResult.batchesFailed).toBe(0);
+    expect(pushResult.errors).toEqual([]);
+    expect(pushResult.retryHint).toBeNull();
   });
 });

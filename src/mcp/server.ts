@@ -479,8 +479,9 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
     }
 
     // Auto-push triples server-side
-    let pushStats: { triplesInserted: number; batchCount: number } | null = null;
+    let pushStats: import('../lib/deep-scan-triples.js').PushResult | null = null;
     let moduleStats: { modules: number; edges: number } | null = null;
+    const pushWarnings: string[] = [];
     try {
       const config = loadConfig();
       const contextUri = `${config.graphUri}/context`;
@@ -488,6 +489,9 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
 
       // Push symbol triples
       pushStats = await pushSymbolTriples(adapter, contextUri, scanResult);
+      if (pushStats.errors.length > 0) {
+        pushWarnings.push(...pushStats.errors);
+      }
 
       // Also push module dependency graph (fixes #64)
       const snapshot = await scanCodebase(process.cwd());
@@ -511,13 +515,18 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       }
 
       await persistGraph(adapter, config, contextUri);
-    } catch {
-      // Non-fatal: push is best-effort
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      pushWarnings.push(`Push failed: ${msg}`);
     }
 
     const hints: string[] = [];
-    if (pushStats) hints.push(`Symbol triples: ${pushStats.triplesInserted} in ${pushStats.batchCount} batches`);
+    if (pushStats) {
+      hints.push(`Symbol triples: ${pushStats.triplesInserted} inserted, ${pushStats.triplesFailed} failed, ${pushStats.batchCount} batches`);
+      if (pushStats.retryHint) hints.push(pushStats.retryHint);
+    }
     if (moduleStats) hints.push(`Module triples: ${moduleStats.modules} modules, ${moduleStats.edges} edges`);
+    if (pushWarnings.length > 0) hints.push(...pushWarnings);
 
     // Build compact summary — do NOT return full symbol arrays (#66)
     const compact: Record<string, unknown> = {
@@ -530,6 +539,7 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
         files: scanResult.fileCount,
         symbols: scanResult.symbolCount,
       },
+      languageHints: scanResult.languageHints,
       scanDurationMs: scanResult.scanDurationMs,
       capped: scanResult.capped,
       warnings: scanResult.warnings,
@@ -625,9 +635,43 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
     // Non-fatal: module triple push is best-effort
   }
 
+  // Generate language hints for module scan — helps LLM understand when module scan isn't applicable
+  const moduleLanguageHints: Array<{ language: string; dependencyModel: string; moduleScanApplicable: boolean; recommendation: string }> = [];
+  const fileExtensionMap: Record<string, { lang: string; model: string }> = {
+    '.ts': { lang: 'typescript', model: 'file-based' },
+    '.tsx': { lang: 'typescript', model: 'file-based' },
+    '.js': { lang: 'javascript', model: 'file-based' },
+    '.jsx': { lang: 'javascript', model: 'file-based' },
+    '.py': { lang: 'python', model: 'file-based' },
+    '.rs': { lang: 'rust', model: 'file-based' },
+    '.go': { lang: 'go', model: 'package-based' },
+    '.java': { lang: 'java', model: 'package-based' },
+    '.swift': { lang: 'swift', model: 'framework-based' },
+  };
+  if (snapshot.dependencyGraph) {
+    const detectedLangs = new Set<string>();
+    for (const mod of snapshot.dependencyGraph.modules) {
+      const ext = '.' + mod.split('.').pop();
+      const info = fileExtensionMap[ext];
+      if (info && !detectedLangs.has(info.lang)) {
+        detectedLangs.add(info.lang);
+        const applicable = info.model === 'file-based';
+        moduleLanguageHints.push({
+          language: info.lang,
+          dependencyModel: info.model,
+          moduleScanApplicable: applicable,
+          recommendation: applicable
+            ? 'Module-level dependency graph (depth="module") is applicable.'
+            : `This language uses ${info.model} imports — module-level scan is not applicable. Use depth="symbol" for class/method/call-level analysis.`,
+        });
+      }
+    }
+  }
+
   return {
     codebaseSnapshot: snapshot,
     moduleStats,
+    languageHints: moduleLanguageHints.length > 0 ? moduleLanguageHints : undefined,
     _hint: moduleStats
       ? `Module triples auto-pushed: ${moduleStats.modules} modules, ${moduleStats.edges} edges. Query with: SELECT ?m WHERE { ?m a otx:Module }`
       : 'No dependency graph auto-extracted or push failed. Inspect key source files manually.',

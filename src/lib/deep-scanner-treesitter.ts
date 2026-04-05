@@ -65,6 +65,7 @@ async function loadLanguage(wasmName: string): Promise<TSLanguage | null> {
 export abstract class TreeSitterExtractor implements LanguageExtractor {
   abstract readonly language: string;
   abstract readonly extensions: string[];
+  abstract readonly dependencyModel: import('./language-extractor.js').DependencyModel;
 
   /** WASM file name, e.g. 'tree-sitter-python.wasm' */
   protected abstract readonly wasmName: string;

@@ -11,6 +11,7 @@ import type { ClassInfo, InterfaceInfo, FunctionInfo, MethodCallInfo } from '../
 export class GoExtractor extends TreeSitterExtractor {
   readonly language = 'go';
   readonly extensions = ['.go'];
+  readonly dependencyModel = 'package-based' as const;
   protected readonly wasmName = 'tree-sitter-go.wasm';
 
   protected extractFromTree(

@@ -11,6 +11,7 @@ import type { ClassInfo, InterfaceInfo, FunctionInfo, MethodCallInfo } from '../
 export class SwiftExtractor extends TreeSitterExtractor {
   readonly language = 'swift';
   readonly extensions = ['.swift'];
+  readonly dependencyModel = 'framework-based' as const;
   protected readonly wasmName = 'tree-sitter-swift.wasm';
 
   protected extractFromTree(

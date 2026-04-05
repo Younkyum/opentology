@@ -11,6 +11,7 @@ import type { ClassInfo, InterfaceInfo, FunctionInfo, MethodCallInfo } from '../
 export class JavaExtractor extends TreeSitterExtractor {
   readonly language = 'java';
   readonly extensions = ['.java'];
+  readonly dependencyModel = 'package-based' as const;
   protected readonly wasmName = 'tree-sitter-java.wasm';
 
   protected extractFromTree(

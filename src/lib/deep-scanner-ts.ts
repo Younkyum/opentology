@@ -188,6 +188,7 @@ function extractMethodCalls(
 export class TypeScriptExtractor implements LanguageExtractor {
   readonly language = 'typescript';
   readonly extensions = ['.ts', '.tsx', '.js', '.jsx'];
+  readonly dependencyModel = 'file-based' as const;
 
   private tsMorph: TsMorph | null = null;
 

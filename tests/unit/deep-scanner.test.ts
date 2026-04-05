@@ -334,4 +334,37 @@ describe('deep-scanner', () => {
       expect(Array.isArray(result.unsupportedFiles)).toBe(true);
     });
   });
+
+  describe('languageHints (#70)', () => {
+    it('includes languageHints for TypeScript with file-based model', async () => {
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/app.ts', 'export class App {}');
+
+      const result = await deepScan(tempDir);
+      if (!result.deepScanAvailable) return;
+
+      expect(result.languageHints).toBeDefined();
+      expect(result.languageHints.length).toBeGreaterThan(0);
+
+      const tsHint = result.languageHints.find(h => h.language === 'typescript');
+      expect(tsHint).toBeDefined();
+      expect(tsHint!.dependencyModel).toBe('file-based');
+      expect(tsHint!.moduleScanApplicable).toBe(true);
+    });
+
+    it('includes languageHints in capped results', async () => {
+      await writeTsConfig(tempDir);
+      // Create enough files to exceed maxFiles=1
+      await writeSourceFile(tempDir, 'src/a.ts', 'export class A {}');
+      await writeSourceFile(tempDir, 'src/b.ts', 'export class B {}');
+      await writeSourceFile(tempDir, 'src/c.ts', 'export class C {}');
+
+      const result = await deepScan(tempDir, { maxFiles: 1 });
+      if (!result.deepScanAvailable) return;
+
+      expect(result.capped).toBe(true);
+      expect(result.languageHints).toBeDefined();
+      expect(result.languageHints.length).toBeGreaterThan(0);
+    });
+  });
 });

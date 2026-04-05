@@ -3,7 +3,7 @@
  * Delegates to LanguageExtractor implementations (ts-morph, tree-sitter, etc.).
  */
 
-import type { LanguageExtractor } from './language-extractor.js';
+import type { LanguageExtractor, DependencyModel } from './language-extractor.js';
 import { TypeScriptExtractor } from './deep-scanner-ts.js';
 import { PythonExtractor } from './extractors/python.js';
 import { GoExtractor } from './extractors/go.js';
@@ -56,6 +56,13 @@ export interface MethodCallInfo {
   callee: string;  // ClassName.methodName
 }
 
+export interface LanguageHint {
+  language: string;
+  dependencyModel: DependencyModel;
+  moduleScanApplicable: boolean;
+  recommendation: string;
+}
+
 export interface UnsupportedFileGroup {
   extension: string;
   language: string;
@@ -70,6 +77,7 @@ export interface DeepScanResult {
   functions: FunctionInfo[];
   methodCalls: MethodCallInfo[];
   unsupportedFiles: UnsupportedFileGroup[];
+  languageHints: LanguageHint[];
   fileCount: number;
   symbolCount: number;
   scanDurationMs: number;
@@ -203,6 +211,23 @@ async function discoverUnsupportedFiles(
     .sort((a, b) => b.count - a.count);
 }
 
+// ── Language hint generation ────────────────────────────────────
+
+const DEPENDENCY_MODEL_RECOMMENDATIONS: Record<DependencyModel, string> = {
+  'file-based': 'Module-level dependency graph (depth="module") is applicable.',
+  'package-based': 'This language uses package-based imports — module-level scan is not applicable. Use depth="symbol" for class/method/call-level analysis.',
+  'framework-based': 'This language uses framework-level imports — module-level scan is not applicable. Use depth="symbol" for class/method/call-level analysis.',
+};
+
+function buildLanguageHints(extractors: LanguageExtractor[]): LanguageHint[] {
+  return extractors.map(ext => ({
+    language: ext.language,
+    dependencyModel: ext.dependencyModel,
+    moduleScanApplicable: ext.dependencyModel === 'file-based',
+    recommendation: DEPENDENCY_MODEL_RECOMMENDATIONS[ext.dependencyModel],
+  }));
+}
+
 // ── Main entry point ────────────────────────────────────────────
 
 export async function deepScan(
@@ -255,6 +280,7 @@ export async function deepScan(
       functions: [],
       methodCalls: [],
       unsupportedFiles: [],
+      languageHints: buildLanguageHints(available),
       fileCount: total,
       symbolCount: 0,
       scanDurationMs: Date.now() - start,
@@ -335,6 +361,7 @@ export async function deepScan(
     functions,
     methodCalls,
     unsupportedFiles,
+    languageHints: buildLanguageHints(available),
     fileCount: files.length,
     symbolCount,
     scanDurationMs: Date.now() - start,

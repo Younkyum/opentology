@@ -13,6 +13,7 @@ const PROTOCOL_BASES = new Set(['ABC', 'ABCMeta', 'Protocol']);
 export class PythonExtractor extends TreeSitterExtractor {
   readonly language = 'python';
   readonly extensions = ['.py'];
+  readonly dependencyModel = 'file-based' as const;
   protected readonly wasmName = 'tree-sitter-python.wasm';
 
   protected extractFromTree(

@@ -104,7 +104,7 @@ export function generateSymbolTriples(result: DeepScanResult): string[] {
 
 // ── Batching ────────────────────────────────────────────────────
 
-export function batchTriples(triples: string[], batchSize = 100): string[][] {
+export function batchTriples(triples: string[], batchSize = 25): string[][] {
   const batches: string[][] = [];
   for (let i = 0; i < triples.length; i += batchSize) {
     batches.push(triples.slice(i, i + batchSize));
@@ -135,11 +135,20 @@ export async function deleteExistingSymbols(
   );
 }
 
+export interface PushResult {
+  triplesInserted: number;
+  triplesFailed: number;
+  batchCount: number;
+  batchesFailed: number;
+  errors: string[];
+  retryHint: string | null;
+}
+
 export async function pushSymbolTriples(
   adapter: StoreAdapter,
   graphUri: string,
   result: DeepScanResult,
-): Promise<{ triplesInserted: number; batchCount: number }> {
+): Promise<PushResult> {
   // Collect all module paths for scoped delete
   const modulePaths = new Set<string>();
   for (const c of result.classes) modulePaths.add(c.filePath);
@@ -149,15 +158,33 @@ export async function pushSymbolTriples(
   // Delete existing symbols for these modules
   await deleteExistingSymbols(adapter, graphUri, [...modulePaths]);
 
-  // Generate and batch-insert
+  // Generate and batch-insert with per-batch error handling
   const triples = generateSymbolTriples(result);
-  const batches = batchTriples(triples, 100);
+  const batches = batchTriples(triples, 25);
 
-  for (const batch of batches) {
-    await adapter.sparqlUpdate(
-      `INSERT DATA { GRAPH <${graphUri}> {\n${batch.join('\n')}\n} }`
-    );
+  let inserted = 0;
+  let failed = 0;
+  let batchesFailed = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    try {
+      await adapter.sparqlUpdate(
+        `INSERT DATA { GRAPH <${graphUri}> {\n${batch.join('\n')}\n} }`
+      );
+      inserted += batch.length;
+    } catch (err) {
+      batchesFailed++;
+      failed += batch.length;
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Batch ${i + 1}/${batches.length} failed (${batch.length} triples): ${msg}`);
+    }
   }
 
-  return { triplesInserted: triples.length, batchCount: batches.length };
+  const retryHint = batchesFailed > 0
+    ? `${batchesFailed}/${batches.length} batches failed (${failed} triples lost). Re-run context_scan with depth="symbol" to retry. If failures persist, try reducing maxSymbols or disabling includeMethodCalls.`
+    : null;
+
+  return { triplesInserted: inserted, triplesFailed: failed, batchCount: batches.length, batchesFailed, errors, retryHint };
 }

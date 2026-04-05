@@ -12,12 +12,18 @@ export interface ExtractedSymbols {
   methodCalls: MethodCallInfo[];
 }
 
+/** How a language resolves inter-file dependencies. */
+export type DependencyModel = 'file-based' | 'package-based' | 'framework-based';
+
 export interface LanguageExtractor {
   /** Language identifier, e.g. 'typescript', 'python', 'go' */
   readonly language: string;
 
   /** File extensions handled by this extractor, e.g. ['.ts', '.tsx'] */
   readonly extensions: string[];
+
+  /** How this language resolves dependencies between source files. */
+  readonly dependencyModel: DependencyModel;
 
   /** Check whether the extractor's dependencies are available at runtime. */
   isAvailable(): Promise<boolean>;

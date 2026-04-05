@@ -11,6 +11,7 @@ import type { ClassInfo, InterfaceInfo, FunctionInfo, MethodCallInfo } from '../
 export class RustExtractor extends TreeSitterExtractor {
   readonly language = 'rust';
   readonly extensions = ['.rs'];
+  readonly dependencyModel = 'file-based' as const;
   protected readonly wasmName = 'tree-sitter-rust.wasm';
 
   protected extractFromTree(
