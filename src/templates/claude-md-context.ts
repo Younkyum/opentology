@@ -38,6 +38,7 @@ symbol-level call graphs, and session history. Prefer graph knowledge over re-de
 | \`otx:Function\` | Function definition (symbol scan) |
 | \`otx:Method\` | Method definition (symbol scan) |
 | \`otx:MethodCall\` | Call relationship between symbols (symbol scan) |
+| \`otx:Source\` | External knowledge source (article, paper, code, etc.) |
 
 | Property | Range | Description |
 |----------|-------|-------------|
@@ -53,6 +54,8 @@ symbol-level call graphs, and session history. Prefer graph knowledge over re-de
 | \`otx:callerSymbol\` | string | Caller in a MethodCall |
 | \`otx:calleeSymbol\` | string | Callee in a MethodCall |
 | \`otx:calls\` | resource | Call relationship |
+| \`otx:sourceUrl\` | string | URL or file path of source material |
+| \`otx:sourceType\` | string | Source category (article/paper/code/etc.) |
 
 ### When to Record
 
@@ -61,6 +64,7 @@ symbol-level call graphs, and session history. Prefer graph knowledge over re-de
 | Architecture/tech decision | \`otx:Decision\` | context |
 | Bug/issue resolved | \`otx:Issue\` | context |
 | Reusable knowledge | \`otx:Knowledge\` | context |
+| Source ingested | \`otx:Source\` | context |
 | Session end | \`otx:Session\` | sessions |
 
 ### Query Examples
@@ -160,6 +164,23 @@ SELECT ?dependent WHERE {
   }
 }
 \`\`\`
+
+#### Ingesting External Sources
+
+When the user says "ingest [URL/path/text]", follow this protocol:
+
+1. **Duplicate check** — Query for existing sources with the same URL or title.
+2. **Register** — Push an \\\`otx:Source\\\` with status "pending" using the \\\`push\\\` tool.
+3. **Read** — Fetch URL content, read file, or use pasted text directly.
+4. **Extract** — Summarize key concepts. Create \\\`otx:Knowledge\\\` triples linked via \\\`otx:relatedTo\\\`.
+5. **Cross-reference** — Query existing graph for related decisions/issues/knowledge. Link via \\\`otx:relatedTo\\\`.
+6. **Contradictions** — If new knowledge contradicts existing entries, create \\\`otx:Issue\\\` with status "open".
+7. **Finalize** — Update source status from "pending" to "ingested". Run audit query.
+
+Duplicate check: \\\`SELECT ?s ?title WHERE { GRAPH <\${contextUri}> { ?s a otx:Source ; otx:sourceUrl ?url . FILTER(?url = "URL") } }\\\`
+Audit: \\\`SELECT ?s ?title ?status (COUNT(?k) AS ?knowledgeCount) WHERE { GRAPH <\${contextUri}> { ?s a otx:Source ; otx:title ?title ; otx:status ?status . OPTIONAL { ?k otx:relatedTo ?s } } } GROUP BY ?s ?title ?status\\\`
+Registration: \\\`<urn:source:{slug}> a otx:Source ; otx:title "..." ; otx:sourceUrl "..." ; otx:sourceType "article" ; otx:date "YYYY-MM-DD"^^xsd:date ; otx:status "pending" .\\\`
+Types: article | paper | code | transcript | documentation | video | podcast | book | other. Status: pending → ingested → stale. Recovery: \\\`rollback\\\`.
 
 #### Post-Edit Graph Update
 

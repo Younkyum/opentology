@@ -26,6 +26,8 @@ otx:dependsOn a owl:ObjectProperty ; rdfs:domain otx:Module ; rdfs:range otx:Mod
 otx:stack a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:alternative a owl:DatatypeProperty ; rdfs:range xsd:string .
 
+otx:Source a owl:Class .
+
 otx:Class a owl:Class .
 otx:Interface a owl:Class .
 otx:Function a owl:Class .
@@ -41,5 +43,8 @@ otx:callerSymbol a owl:ObjectProperty ; rdfs:domain otx:MethodCall .
 otx:calleeSymbol a owl:ObjectProperty ; rdfs:domain otx:MethodCall .
 otx:returns a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:paramType a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+otx:sourceUrl a owl:DatatypeProperty ; rdfs:range xsd:string .
+otx:sourceType a owl:DatatypeProperty ; rdfs:range xsd:string .
 `;
 
