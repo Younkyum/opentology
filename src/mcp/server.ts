@@ -560,23 +560,33 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
   const sessionStartCmd = 'node .opentology/hooks/session-start.mjs';
   if (!hooks.SessionStart) hooks.SessionStart = [];
   const hasSessionHook = hooks.SessionStart.some(
-    (h: unknown) => (h as Record<string, string>).command === sessionStartCmd
+    (h: unknown) => {
+      const entry = h as Record<string, unknown>;
+      const entryHooks = entry.hooks as Array<Record<string, string>> | undefined;
+      return entryHooks?.some((hook) => hook.command === sessionStartCmd);
+    }
   );
   if (!hasSessionHook) {
-    hooks.SessionStart.push({ type: 'command', command: sessionStartCmd });
+    hooks.SessionStart.push({
+      matcher: '',
+      hooks: [{ type: 'command', command: sessionStartCmd }],
+    });
     hooksChanged = true;
   }
 
   const preEditCmd = 'node .opentology/hooks/pre-edit.mjs';
   if (!hooks.PreToolUse) hooks.PreToolUse = [];
   const hasPreEditHook = hooks.PreToolUse.some(
-    (h: unknown) => (h as Record<string, string>).command === preEditCmd
+    (h: unknown) => {
+      const entry = h as Record<string, unknown>;
+      const entryHooks = entry.hooks as Array<Record<string, string>> | undefined;
+      return entryHooks?.some((hook) => hook.command === preEditCmd);
+    }
   );
   if (!hasPreEditHook) {
     hooks.PreToolUse.push({
-      type: 'command',
-      command: preEditCmd,
-      matcher: { tool_name: 'Edit|Write' },
+      matcher: 'Edit|Write',
+      hooks: [{ type: 'command', command: preEditCmd }],
     });
     hooksChanged = true;
   }
