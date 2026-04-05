@@ -1,10 +1,10 @@
 {
   "name": "opentology",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Ontology-powered project memory for AI coding assistants — your codebase as a knowledge graph",
   "type": "module",
   "bin": {
-    "opentology": "dist/index.js"
+    "opentology": "./dist/index.js"
   },
   "files": [
     "dist/"
