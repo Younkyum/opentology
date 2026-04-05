@@ -328,13 +328,15 @@ async function handleDiff(args: Record<string, unknown>): Promise<unknown> {
     throw new Error('content (Turtle) is required');
   }
 
+  const limit = typeof args.limit === 'number' ? args.limit : 50;
+
   const { config, graphUri } = resolveConfig({
     graphUri: args.graphUri as string | undefined,
     graph: args.graph as string | undefined,
   });
 
   const adapter = await createReadyAdapter(config);
-  return await adapter.diffGraph(graphUri, content);
+  return await adapter.diffGraph(graphUri, content, limit);
 }
 
 async function handleGraphList(_args: Record<string, unknown>): Promise<unknown> {
@@ -1225,13 +1227,17 @@ export async function startMcpServer(): Promise<void> {
       },
       {
         name: 'diff',
-        description: 'Compare local Turtle content against the remote graph. Returns added triples (in local but not remote), removed triples (in remote but not local), and count of unchanged triples.',
+        description: 'Compare local Turtle content against the remote graph. Returns added triples (in local but not remote), removed triples (in remote but not local), and count of unchanged triples. Output is limited to avoid blowing up LLM context windows.',
         inputSchema: {
           type: 'object' as const,
           properties: {
             content: {
               type: 'string',
               description: 'Turtle (RDF) content to compare against the remote graph',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of added/removed triples to return (default: 50). Total counts are always included.',
             },
             graph: {
               type: 'string',

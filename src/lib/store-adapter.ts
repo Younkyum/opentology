@@ -28,7 +28,8 @@ export interface StoreAdapter {
   diffGraph(
     graphUri: string,
     localTurtle: string,
-  ): Promise<{ added: string[]; removed: string[]; unchanged: number }>;
+    limit?: number,
+  ): Promise<{ added: string[]; removed: string[]; unchanged: number; addedCount: number; removedCount: number; truncated: boolean }>;
 
   // Schema introspection
   getSchemaOverview(graphUri: string): Promise<{
