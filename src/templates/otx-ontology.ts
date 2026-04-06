@@ -77,5 +77,15 @@ otx:evidence a owl:ObjectProperty ; rdfs:domain otx:Insight .
 
 # Decision chaining
 otx:supersedes a owl:ObjectProperty ; rdfs:domain otx:Decision ; rdfs:range otx:Decision .
+
+# ── Ask execution layer ──
+otx:Predicate a owl:Class .
+otx:Evaluation a owl:Class .
+
+otx:sparqlTemplate a owl:DatatypeProperty ; rdfs:domain otx:Predicate ; rdfs:range xsd:string .
+otx:requiredParam a owl:DatatypeProperty ; rdfs:domain otx:Predicate ; rdfs:range xsd:string .
+otx:predicate a owl:ObjectProperty ; rdfs:domain otx:Evaluation ; rdfs:range otx:Predicate .
+otx:input a owl:DatatypeProperty ; rdfs:domain otx:Evaluation ; rdfs:range xsd:string .
+otx:result a owl:DatatypeProperty ; rdfs:domain otx:Evaluation ; rdfs:range xsd:string .
 `;
 

@@ -297,5 +297,61 @@ The tool starts a local web server and returns a URL. Tell the user:
 If context is not initialized, suggest running /context-init first.
 `,
     },
+    {
+      filename: 'context-ask.md',
+      content: `Evaluate a registered Predicate against the OpenTology knowledge graph using the \`ask\` MCP tool.
+
+## Step 1 — List available predicates
+
+\`\`\`sparql
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?uri ?title ?param WHERE {
+  GRAPH <https://opentology.dev/opentology-context/context> {
+    ?uri a otx:Predicate ; otx:title ?title .
+    OPTIONAL { ?uri otx:requiredParam ?param }
+  }
+} ORDER BY ?title
+\`\`\`
+
+Show the user the available predicates with their required parameters.
+
+## Step 2 — Ask the user
+
+Ask which predicate to evaluate and what context values to provide.
+
+If the user describes their question in natural language, match it to the closest predicate from the list.
+
+## Step 3 — Call the ask tool
+
+Use the \`ask\` MCP tool with the predicate name and context values.
+
+Example:
+\`\`\`json
+{
+  "predicate": "Module.hasOpenIssue",
+  "context": { "module": "src/lib/reasoner.ts" }
+}
+\`\`\`
+
+## Step 4 — Display results
+
+Show:
+- **Answer**: true / false / null
+- **Reason**: why this answer was given
+- **Bindings** (if SELECT): matching results
+- **Evaluation URI**: where the result was recorded
+
+If no predicates are registered yet, suggest running /context-init to set up built-in predicates or show how to register a custom one:
+
+\`\`\`turtle
+@prefix otx: <https://opentology.dev/vocab#> .
+
+<urn:predicate:MyEntity.myCheck> a otx:Predicate ;
+    otx:title "MyEntity.myCheck" ;
+    otx:sparqlTemplate """ASK { GRAPH <{{graphUri}}> { ... FILTER(... = "{{param}}") } }""" ;
+    otx:requiredParam "param" .
+\`\`\`
+`,
+    },
   ];
 }

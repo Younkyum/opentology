@@ -25,6 +25,7 @@ import type { InferenceResult } from '../lib/reasoner.js';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { OTX_BOOTSTRAP_TURTLE } from '../templates/otx-ontology.js';
+import { BUILTIN_PREDICATES_TURTLE } from '../templates/builtin-predicates.js';
 import { generateContextSection, updateClaudeMd, updateGlobalClaudeMd } from '../templates/claude-md-context.js';
 import { generateHookScript } from '../templates/session-start-hook.js';
 import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
@@ -33,6 +34,7 @@ import { generatePostErrorHookScript } from '../templates/post-error-hook.js';
 import { generateStopSessionHookScript } from '../templates/stop-session-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import { runDoctor } from '../lib/doctor.js';
+import { ask } from '../lib/ask-engine.js';
 
 export interface ContextLoadOutput {
   projectId: string;
@@ -709,7 +711,20 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     if (!config.files[contextUri].includes(relPath)) {
       config.files[contextUri].push(relPath);
     }
-    actions.push('Bootstrapped otx ontology (13 classes, 24 properties)');
+    actions.push('Bootstrapped otx ontology (15 classes, 29 properties)');
+  }
+
+  // Bootstrap built-in predicates
+  const predicatesPath = join(ontologyDir, 'predicates.ttl');
+  if (!existsSync(predicatesPath) || force) {
+    writeFileSync(predicatesPath, BUILTIN_PREDICATES_TURTLE, 'utf-8');
+    if (!config.files) config.files = {};
+    if (!config.files[contextUri]) config.files[contextUri] = [];
+    const predRelPath = '.opentology/predicates.ttl';
+    if (!config.files[contextUri].includes(predRelPath)) {
+      config.files[contextUri].push(predRelPath);
+    }
+    actions.push('Bootstrapped 6 built-in predicates for ask() engine');
   }
 
   // Generate hook script
@@ -1792,6 +1807,37 @@ export async function startMcpServer(): Promise<void> {
           required: ['action'],
         },
       },
+      {
+        name: 'ask',
+        description: 'Evaluate a registered Predicate against the knowledge graph. Predicates are SPARQL templates stored as otx:Predicate in the context graph. Returns a deterministic boolean answer (or null if predicate is unknown or required params are missing). Optionally records the evaluation as otx:Evaluation.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            predicate: {
+              type: 'string',
+              description: 'Predicate name (e.g. "Module.hasOpenIssue") or full URI (urn:predicate:Module.hasOpenIssue)',
+            },
+            context: {
+              type: 'object' as const,
+              description: 'Key-value pairs to bind into the SPARQL template (e.g. { "module": "src/lib/reasoner.ts" })',
+              additionalProperties: { type: 'string' },
+            },
+            record: {
+              type: 'boolean',
+              description: 'If false, skip recording the evaluation result to the graph. Default: true',
+            },
+            graph: {
+              type: 'string',
+              description: 'Logical graph name. Resolves to a graph URI via config.',
+            },
+            graphUri: {
+              type: 'string',
+              description: 'Named graph URI (uses context graph if omitted)',
+            },
+          },
+          required: ['predicate', 'context'],
+        },
+      },
     ],
   }));
 
@@ -1886,6 +1932,22 @@ export async function startMcpServer(): Promise<void> {
         case 'doctor':
           result = await runDoctor();
           break;
+        case 'ask': {
+          const askArgs = args as Record<string, unknown>;
+          const askConfig = loadConfig();
+          const askGraphUri = askArgs.graphUri as string
+            || (askArgs.graph ? resolveGraphUri(askConfig, askArgs.graph as string) : `${askConfig.graphUri}/context`);
+          const askAdapter = await createReadyAdapter(askConfig);
+          result = await ask(askAdapter, askGraphUri, {
+            predicate: askArgs.predicate as string,
+            context: (askArgs.context as Record<string, string>) || {},
+            record: askArgs.record as boolean | undefined,
+          });
+          if ((result as { evaluationUri?: string }).evaluationUri) {
+            await persistGraph(askAdapter, askConfig, askGraphUri);
+          }
+          break;
+        }
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
