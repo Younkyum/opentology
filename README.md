@@ -117,11 +117,11 @@ Everything lives in RDF named graphs with the `otx:` ontology:
 ```
 context graph                        sessions graph
 ├── otx:Module (source files)        └── otx:Session (work logs)
-│   └── otx:dependsOn                    ├── otx:body (what was done)
-├── otx:Class / otx:Interface            └── otx:nextTodo (what's next)
-│   └── otx:Method / otx:Function
-├── otx:Decision (architecture choices)
-├── otx:Issue (bugs, status tracking)
+│   └── otx:dependsOn                    ├── otx:hasActivity → otx:Activity
+├── otx:Class / otx:Interface            ├── otx:Todo (open → done)
+│   └── otx:Method / otx:Function       ├── otx:Insight (patterns learned)
+├── otx:Decision (architecture choices)  ├── otx:Domain (work area tags)
+├── otx:Issue (bugs, status tracking)    └── otx:followsUp (session chaining)
 └── otx:Knowledge (reusable patterns)
 ```
 
@@ -319,6 +319,7 @@ opentology doctor
 - [x] Auto-sync from git history
 - [x] AI behavioral instructions via CLAUDE.md injection
 - [x] Interactive graph visualization web UI
+- [x] Structured session schema (Activity, Todo, Insight, Domain) with proactive save
 - [ ] OWL reasoning (owl:sameAs, owl:inverseOf)
 - [ ] Remote ontology import
 - [ ] Ontology snapshot versioning
@@ -445,11 +446,11 @@ SELECT ?from ?to WHERE {
 ```
 context graph                        sessions graph
 ├── otx:Module (소스 파일)             └── otx:Session (작업 로그)
-│   └── otx:dependsOn                    ├── otx:body (수행한 작업)
-├── otx:Class / otx:Interface            └── otx:nextTodo (다음 할 일)
-│   └── otx:Method / otx:Function
-├── otx:Decision (아키텍처 의사결정)
-├── otx:Issue (버그, 상태 추적)
+│   └── otx:dependsOn                    ├── otx:hasActivity → otx:Activity
+├── otx:Class / otx:Interface            ├── otx:Todo (open → done)
+│   └── otx:Method / otx:Function       ├── otx:Insight (학습된 패턴)
+├── otx:Decision (아키텍처 의사결정)      ├── otx:Domain (작업 영역 태그)
+├── otx:Issue (버그, 상태 추적)          └── otx:followsUp (세션 체이닝)
 └── otx:Knowledge (재사용 가능한 패턴)
 ```
 
@@ -647,6 +648,7 @@ opentology doctor
 - [x] git 이력에서 자동 동기화
 - [x] CLAUDE.md 주입을 통한 AI 행동 지침
 - [x] 인터랙티브 그래프 시각화 웹 UI
+- [x] 구조화된 세션 스키마 (Activity, Todo, Insight, Domain) + 프로액티브 저장
 - [ ] OWL 추론 (owl:sameAs, owl:inverseOf)
 - [ ] 원격 온톨로지 임포트
 - [ ] 온톨로지 스냅샷 버전 관리

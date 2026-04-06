@@ -69,24 +69,95 @@ If context is not initialized, suggest running /context-init first.
     },
     {
       filename: 'context-save.md',
-      content: `Save a session summary to the OpenTology sessions graph.
+      content: `Save a structured session summary to the OpenTology sessions graph.
 
-Ask the user what was accomplished in this session, or summarize the conversation so far.
+## Step 1 — Query previous state
 
-Then use push to insert a session record:
+Before recording, run these queries against the sessions graph:
+
+\`\`\`sparql
+# Find the most recent session (for followsUp linking)
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?s ?title ?date WHERE {
+  GRAPH <https://opentology.dev/opentology-context/sessions> {
+    ?s a otx:Session ; otx:title ?title ; otx:date ?date .
+  }
+} ORDER BY DESC(?date) LIMIT 1
+\`\`\`
+
+\`\`\`sparql
+# Find open Todos (to update status if resolved)
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?s ?title ?status WHERE {
+  GRAPH <https://opentology.dev/opentology-context/sessions> {
+    ?s a otx:Todo ; otx:title ?title ; otx:status ?status .
+    FILTER(?status = "open" || ?status = "in-progress")
+  }
+}
+\`\`\`
+
+## Step 2 — Decompose the session
+
+Summarize the conversation and break it down into:
+
+1. **Session** — overall summary with domain tag and impact level
+2. **Activities** — each distinct task/action as a separate entity
+3. **Todos** — new open items + status updates for existing ones
+4. **Insight** (optional) — any pattern or lesson learned inductively
+
+## Step 3 — Push structured triples
+
+Push to the sessions graph (use graph name "sessions").
 
 \`\`\`turtle
 @prefix otx: <https://opentology.dev/vocab#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<urn:session:{today's date}> a otx:Session ;
-    otx:title "{session summary title}" ;
+# Session
+<urn:session:{YYYY-MM-DD}> a otx:Session ;
+    otx:title "{summary title}" ;
     otx:date "{YYYY-MM-DD}"^^xsd:date ;
-    otx:body "{what was done}" ;
-    otx:nextTodo "{what to do next}" .
+    otx:body "{what was done — keep concise}" ;
+    otx:domain <urn:domain:{slug}> ;
+    otx:impact "{high|medium|low}" ;
+    otx:followsUp <{previous session URI, if any}> ;
+    otx:hasActivity <urn:activity:{YYYY-MM-DD}-1> .
+
+# Activity (one per distinct task)
+<urn:activity:{YYYY-MM-DD}-1> a otx:Activity ;
+    otx:activityType "{code-change|bugfix|feature|refactor|research|schema-change|review|deploy}" ;
+    otx:summary "{what this activity did}" ;
+    otx:touchedModule <urn:module:{file/path}> .
+
+# Todo — new open item
+<urn:todo:{YYYY-MM-DD}-{slug}> a otx:Todo ;
+    otx:title "{what needs to be done}" ;
+    otx:status "open" ;
+    otx:priority "{high|medium|low}" ;
+    otx:createdIn <urn:session:{YYYY-MM-DD}> .
+
+# Todo — resolve existing (if applicable, use delete+push to update status)
+# <urn:todo:{existing}> otx:status "done" ; otx:resolvedIn <urn:session:{YYYY-MM-DD}> .
+
+# Insight (optional — only if a pattern emerged)
+# <urn:insight:{slug}> a otx:Insight ;
+#     otx:title "{pattern or lesson}" ;
+#     otx:confidence "{high|medium|low}" ;
+#     otx:evidence <urn:session:{YYYY-MM-DD}> ;
+#     otx:domain <urn:domain:{slug}> .
+
+# Domain (create only if new)
+# <urn:domain:{slug}> a otx:Domain ; otx:title "{Domain Name}" .
 \`\`\`
 
-Push to the sessions graph (use graph name "sessions").
+## Guidelines
+
+- **Multiple sessions per day**: append a counter, e.g. \`urn:session:2026-04-06-2\`
+- **Activity types**: code-change, bugfix, feature, refactor, research, schema-change, review, deploy (free-form OK)
+- **Todo status machine**: open → in-progress → done | dropped (dropped requires otx:reason)
+- **Insight confidence**: high (3+ evidence), medium (2 evidence), low (1 evidence / hunch)
+- **Domain**: reuse existing domains when possible. Query first before creating new ones.
+- **followsUp**: always link to the previous session if one exists
 `,
     },
     {

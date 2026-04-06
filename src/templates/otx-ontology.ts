@@ -46,5 +46,36 @@ otx:paramType a owl:DatatypeProperty ; rdfs:range xsd:string .
 
 otx:sourceUrl a owl:DatatypeProperty ; rdfs:range xsd:string .
 otx:sourceType a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# ── Session sub-brain classes ──
+otx:Activity a owl:Class .
+otx:Todo a owl:Class .
+otx:Insight a owl:Class .
+otx:Domain a owl:Class .
+
+# Session → Activity
+otx:hasActivity a owl:ObjectProperty ; rdfs:domain otx:Session ; rdfs:range otx:Activity .
+otx:activityType a owl:DatatypeProperty ; rdfs:domain otx:Activity ; rdfs:range xsd:string .
+otx:summary a owl:DatatypeProperty ; rdfs:range xsd:string .
+otx:touchedModule a owl:ObjectProperty ; rdfs:domain otx:Activity ; rdfs:range otx:Module .
+
+# Domain tagging
+otx:domain a owl:ObjectProperty ; rdfs:range otx:Domain .
+otx:impact a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# Session chaining
+otx:followsUp a owl:ObjectProperty ; rdfs:domain otx:Session ; rdfs:range otx:Session .
+
+# Todo (open → in-progress → done | dropped)
+otx:createdIn a owl:ObjectProperty ; rdfs:range otx:Session .
+otx:resolvedIn a owl:ObjectProperty ; rdfs:domain otx:Todo ; rdfs:range otx:Session .
+otx:priority a owl:DatatypeProperty ; rdfs:range xsd:string .
+
+# Insight (inductive knowledge from session patterns)
+otx:confidence a owl:DatatypeProperty ; rdfs:domain otx:Insight ; rdfs:range xsd:string .
+otx:evidence a owl:ObjectProperty ; rdfs:domain otx:Insight .
+
+# Decision chaining
+otx:supersedes a owl:ObjectProperty ; rdfs:domain otx:Decision ; rdfs:range otx:Decision .
 `;
 

@@ -75,23 +75,24 @@ try {
   const reminders = [];
 
   if (!sessionExists) {
-    reminders.push('Push an otx:Session summary to the sessions graph (title, date, body, nextTodo).');
+    reminders.push('Push a structured session to the sessions graph:');
+    reminders.push('  □ Session — summary, domain, impact, followsUp (link to previous session)');
+    reminders.push('  □ Activity — one per distinct task (activityType, summary, touchedModule)');
+    reminders.push('  □ Todo — new open items with priority; update resolved ones to "done"');
+    reminders.push('  □ Insight — if a pattern or lesson emerged (optional)');
   }
 
-  // Always remind about Knowledge/Decision/Issue recording
-  reminders.push('Review if any of these should be recorded:');
-  reminders.push('- Architecture/tech decisions → otx:Decision');
-  reminders.push('- Reusable patterns or lessons → otx:Knowledge');
-  reminders.push('- Resolved bugs/issues → otx:Issue');
-  reminders.push('- External sources ingested → otx:Source');
+  reminders.push('Also review if any of these should be recorded to the context graph:');
+  reminders.push('  - Architecture/tech decisions → otx:Decision');
+  reminders.push('  - Reusable patterns or lessons → otx:Knowledge');
+  reminders.push('  - Resolved bugs/issues → otx:Issue');
+  reminders.push('  - External sources ingested → otx:Source');
 
-  if (reminders.length > 0) {
-    const header = sessionExists
-      ? 'Session log exists. Check if additional knowledge should be recorded:'
-      : 'Session log missing (' + today + ', ' + commitCount + ' commits, importance: ' + importance + '). Before ending:';
-    console.log(header);
-    for (const r of reminders) console.log('  ' + r);
-  }
+  const header = sessionExists
+    ? 'Session log exists. Check if additional knowledge should be recorded:'
+    : 'Session log missing (' + today + ', ' + commitCount + ' commits, importance: ' + importance + '). Before ending:';
+  console.log(header);
+  for (const r of reminders) console.log('  ' + r);
 } catch {
   process.exit(0);
 }
