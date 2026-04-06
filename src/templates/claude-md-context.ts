@@ -32,13 +32,17 @@ export function generateContextSection(projectId: string, graphUri: string): str
 | \`otx:Issue\` | Bugs and issues |
 | \`otx:Knowledge\` | Reusable knowledge |
 | \`otx:Session\` | Session logs |
+| \`otx:Activity\` | Individual task within a session |
+| \`otx:Todo\` | Trackable action item (open → in-progress → done \\| dropped) |
+| \`otx:Insight\` | Inductively derived knowledge from session patterns |
+| \`otx:Domain\` | Work area tag for sessions and activities |
 | \`otx:Pattern\` | Recurring patterns/conventions |
 | \`otx:Source\` | External knowledge source (article, paper, code, etc.) |
 | \`otx:Module\` | Source file module |
 | \`otx:Class\` / \`otx:Interface\` / \`otx:Function\` / \`otx:Method\` | Symbol-level entities (from deep scan) |
 | \`otx:MethodCall\` | Call relationship between symbols |
 
-Key properties: \`otx:title\`, \`otx:date\`, \`otx:body\`, \`otx:status\`, \`otx:reason\`, \`otx:nextTodo\`, \`otx:relatedTo\`, \`otx:dependsOn\`, \`otx:definedIn\`, \`otx:callerSymbol\`, \`otx:calleeSymbol\`, \`otx:sourceUrl\`, \`otx:sourceType\`. Full schema: use the \`schema\` tool.
+Key properties: \`otx:title\`, \`otx:date\`, \`otx:body\`, \`otx:status\`, \`otx:reason\`, \`otx:relatedTo\`, \`otx:dependsOn\`, \`otx:definedIn\`, \`otx:callerSymbol\`, \`otx:calleeSymbol\`, \`otx:sourceUrl\`, \`otx:sourceType\`. Session properties: \`otx:hasActivity\`, \`otx:followsUp\`, \`otx:domain\`, \`otx:impact\`, \`otx:activityType\`, \`otx:summary\`, \`otx:touchedModule\`, \`otx:createdIn\`, \`otx:resolvedIn\`, \`otx:priority\`, \`otx:confidence\`, \`otx:evidence\`, \`otx:supersedes\`. Full schema: use the \`schema\` tool.
 
 ### When to Record
 
@@ -48,7 +52,8 @@ Key properties: \`otx:title\`, \`otx:date\`, \`otx:body\`, \`otx:status\`, \`otx
 | Bug/issue resolved | \`otx:Issue\` | context |
 | Reusable knowledge | \`otx:Knowledge\` | context |
 | Source ingested | \`otx:Source\` | context |
-| Session end | \`otx:Session\` | sessions |
+| Session end | \`otx:Session\` + \`otx:Activity\` + \`otx:Todo\` | sessions |
+| Pattern/lesson from sessions | \`otx:Insight\` | sessions |
 
 ### Tools & Workflows
 
@@ -104,19 +109,55 @@ Types: article | paper | code | transcript | documentation | video | podcast | b
 | \`push\` | Record decisions, issues, knowledge, sources, or session summaries |
 | \`doctor\` | Diagnose project health (config, store, hooks, CLAUDE.md) |
 
-### Session End
+### Session Start — Sub-brain Query
 
-Push a summary at the end of each meaningful session:
+At the start of each session, query for open Todos and recent Insights to restore working context:
+
+\`\`\`sparql
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?type ?title ?status ?priority WHERE {
+  GRAPH <${sessionsUri}> {
+    { ?s a otx:Todo ; otx:title ?title ; otx:status ?status .
+      OPTIONAL { ?s otx:priority ?priority }
+      FILTER(?status = "open" || ?status = "in-progress")
+      BIND("todo" AS ?type) }
+    UNION
+    { ?s a otx:Insight ; otx:title ?title ; otx:confidence ?status .
+      BIND("insight" AS ?type) BIND("" AS ?priority) }
+  }
+} ORDER BY DESC(?priority) LIMIT 20
+\`\`\`
+
+### Session End — Structured Recording
+
+Push a structured session at the end of each meaningful session. Use \`/context-save\` for the full workflow. Minimal example:
 
 \`\`\`turtle
 @prefix otx: <https://opentology.dev/vocab#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
+# Session with domain and chaining
 <urn:session:YYYY-MM-DD> a otx:Session ;
-    otx:title "Session summary here" ;
+    otx:title "Session summary" ;
     otx:date "YYYY-MM-DD"^^xsd:date ;
     otx:body "What was done" ;
-    otx:nextTodo "What to do next" .
+    otx:domain <urn:domain:{slug}> ;
+    otx:impact "medium" ;
+    otx:followsUp <urn:session:PREV-DATE> ;
+    otx:hasActivity <urn:activity:YYYY-MM-DD-1> .
+
+# Activity per task
+<urn:activity:YYYY-MM-DD-1> a otx:Activity ;
+    otx:activityType "feature" ;
+    otx:summary "What this task did" ;
+    otx:touchedModule <urn:module:src/path/file.ts> .
+
+# Open todo
+<urn:todo:YYYY-MM-DD-slug> a otx:Todo ;
+    otx:title "Next action" ;
+    otx:status "open" ;
+    otx:priority "high" ;
+    otx:createdIn <urn:session:YYYY-MM-DD> .
 \`\`\`
 ${MARKER_END}`;
 }
@@ -150,6 +191,10 @@ Claude Code는 글로벌 MCP \`opentology\`를 통해 프로젝트 지식을 RDF
 | 지식 | \`urn:knowledge:{slug}\` | \`urn:knowledge:wasm-oxigraph\` |
 | 패턴 | \`urn:pattern:{slug}\` | \`urn:pattern:singleton-adapter\` |
 | 소스 | \`urn:source:{slug}\` | \`urn:source:karpathy-llm-wiki\` |
+| 활동 | \`urn:activity:{date}-{n}\` | \`urn:activity:2026-04-05-1\` |
+| 할일 | \`urn:todo:{date}-{slug}\` | \`urn:todo:2026-04-05-error-handling\` |
+| 인사이트 | \`urn:insight:{slug}\` | \`urn:insight:push-error-pattern\` |
+| 도메인 | \`urn:domain:{slug}\` | \`urn:domain:mcp-tools\` |
 
 ## 기록 기준
 
