@@ -14,6 +14,7 @@ export function generateContextSection(projectId: string, graphUri: string): str
 - **Graph first** — query the knowledge graph before reading source files or making assumptions.
 - **Always record** — push Session logs at session end; record Knowledge, Decisions, and Issues as they arise.
 - **Auto-ingest** — when the user shares a URL or external source, run the ingest protocol automatically.
+- **Impact check** — before editing a file, run \`context_impact\` to understand the blast radius.
 </principles>
 
 ### Graph Structure
@@ -21,28 +22,13 @@ export function generateContextSection(projectId: string, graphUri: string): str
 | Graph | URI | Purpose |
 |-------|-----|---------|
 | context | \`${contextUri}\` | Decisions, issues, knowledge, modules, symbols |
-| sessions | \`${sessionsUri}\` | Session work logs |
+| sessions | \`${sessionsUri}\` | Session work logs (Activity, Todo, Insight, Domain) |
 
 ### Ontology (\`otx:\` prefix)
 
-| Class | Description |
-|-------|-------------|
-| \`otx:Project\` | Project hub info |
-| \`otx:Decision\` | Architecture/tech decisions |
-| \`otx:Issue\` | Bugs and issues |
-| \`otx:Knowledge\` | Reusable knowledge |
-| \`otx:Session\` | Session logs |
-| \`otx:Activity\` | Individual task within a session |
-| \`otx:Todo\` | Trackable action item (open → in-progress → done \\| dropped) |
-| \`otx:Insight\` | Inductively derived knowledge from session patterns |
-| \`otx:Domain\` | Work area tag for sessions and activities |
-| \`otx:Pattern\` | Recurring patterns/conventions |
-| \`otx:Source\` | External knowledge source (article, paper, code, etc.) |
-| \`otx:Module\` | Source file module |
-| \`otx:Class\` / \`otx:Interface\` / \`otx:Function\` / \`otx:Method\` | Symbol-level entities (from deep scan) |
-| \`otx:MethodCall\` | Call relationship between symbols |
-
-Key properties: \`otx:title\`, \`otx:date\`, \`otx:body\`, \`otx:status\`, \`otx:reason\`, \`otx:relatedTo\`, \`otx:dependsOn\`, \`otx:definedIn\`, \`otx:callerSymbol\`, \`otx:calleeSymbol\`, \`otx:sourceUrl\`, \`otx:sourceType\`. Session properties: \`otx:hasActivity\`, \`otx:followsUp\`, \`otx:domain\`, \`otx:impact\`, \`otx:activityType\`, \`otx:summary\`, \`otx:touchedModule\`, \`otx:createdIn\`, \`otx:resolvedIn\`, \`otx:priority\`, \`otx:confidence\`, \`otx:evidence\`, \`otx:supersedes\`. Full schema: use the \`schema\` tool.
+**Context graph**: \`Project\`, \`Decision\`, \`Issue\`, \`Knowledge\`, \`Pattern\`, \`Source\`, \`Module\`, \`Class\`, \`Interface\`, \`Function\`, \`Method\`, \`MethodCall\`.
+**Sessions graph**: \`Session\`, \`Activity\`, \`Todo\` (open→in-progress→done|dropped), \`Insight\`, \`Domain\`.
+Full schema and properties: use the \`schema\` tool.
 
 ### When to Record
 
@@ -52,124 +38,57 @@ Key properties: \`otx:title\`, \`otx:date\`, \`otx:body\`, \`otx:status\`, \`otx
 | Bug/issue resolved | \`otx:Issue\` | context |
 | Reusable knowledge | \`otx:Knowledge\` | context |
 | Source ingested | \`otx:Source\` | context |
-| Session end | \`otx:Session\` + \`otx:Activity\` + \`otx:Todo\` | sessions |
+| Session end | \`otx:Session\` + \`Activity\` + \`Todo\` | sessions |
 | Pattern/lesson from sessions | \`otx:Insight\` | sessions |
 
-### Tools & Workflows
-
-#### Before Working
-
-1. **Query graph** — check for existing decisions, knowledge, issues, and sessions related to your task.
-2. **Check impact** — before editing a file, run \`context_impact\` to understand the blast radius (dependents, dependencies, related entities).
-3. **Search** — use \`query\` with SPARQL to find anything: \`?s a otx:Decision\`, \`?s a otx:Knowledge\`, \`?s a otx:Module\`, \`?s a otx:MethodCall\`, etc.
-
-\`\`\`sparql
-# Context search (replace "keyword" with your search term)
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?type ?title ?body WHERE {
-  GRAPH <${contextUri}> {
-    { ?s a otx:Decision ; otx:title ?title ; otx:body ?body . BIND("decision" AS ?type) }
-    UNION { ?s a otx:Knowledge ; otx:title ?title ; otx:body ?body . BIND("knowledge" AS ?type) }
-    UNION { ?s a otx:Issue ; otx:title ?title ; otx:body ?body . BIND("issue" AS ?type) }
-  }
-  FILTER(CONTAINS(LCASE(?title), "keyword") || CONTAINS(LCASE(?body), "keyword"))
-} LIMIT 10
-\`\`\`
-
-#### Ingesting External Sources
-
-When the user shares a URL, file path, or external content, follow this protocol:
-
-1. **Duplicate check** — Query for existing sources with the same URL or title.
-2. **Register** — Push an \`otx:Source\` with status "pending" using the \`push\` tool.
-3. **Read** — Fetch URL content, read file, or use pasted text directly.
-4. **Extract** — Summarize key concepts. Create \`otx:Knowledge\` triples linked via \`otx:relatedTo\`.
-5. **Cross-reference** — Query existing graph for related decisions/issues/knowledge. Link via \`otx:relatedTo\`.
-6. **Contradictions** — If new knowledge contradicts existing entries, create \`otx:Issue\` with status "open".
-7. **Finalize** — Update source status from "pending" to "ingested". Run audit query.
-
-Duplicate check: \`SELECT ?s ?title WHERE { GRAPH <${contextUri}> { ?s a otx:Source ; otx:sourceUrl ?url . FILTER(?url = "URL") } }\`
-Audit: \`SELECT ?s ?title ?status (COUNT(?k) AS ?knowledgeCount) WHERE { GRAPH <${contextUri}> { ?s a otx:Source ; otx:title ?title ; otx:status ?status . OPTIONAL { ?k otx:relatedTo ?s } } } GROUP BY ?s ?title ?status\`
-Registration: \`<urn:source:{slug}> a otx:Source ; otx:title "..." ; otx:sourceUrl "..." ; otx:sourceType "article" ; otx:date "YYYY-MM-DD"^^xsd:date ; otx:status "pending" .\`
-Types: article | paper | code | transcript | documentation | video | podcast | book | other. Status: pending → ingested → stale. Recovery: \`rollback\`.
-
-#### After Working
-
-- Run \`context_scan\` after significant code changes (\`depth="module"\` for fast, \`depth="symbol"\` for thorough).
-
-#### Proactive Session Save
-
-After completing a meaningful work unit, proactively suggest saving a session log. Trigger conditions:
-
-- **Feature/bugfix complete** — code changes committed or ready to commit
-- **PR created or merged** — a development cycle finished
-- **Architecture decision made** — important context worth preserving
-- **Multi-step task done** — research, refactor, or investigation concluded
-
-When triggered, suggest: "세션 로그를 저장할까요? (\`/context-save\`)"
-Do NOT suggest for: trivial Q&A, typo fixes, or config tweaks.
-
-#### Tool Reference
+### Tools
 
 | Tool | When to Use |
 |------|-------------|
-| \`context_load\` | Session start — loads recent sessions, open issues, recent decisions |
-| \`context_scan\` | After code changes — rescans module/symbol dependencies |
-| \`context_impact\` | Before editing — checks blast radius of a file change |
+| \`context_load\` | Session start — loads context + open Todos + Insights |
+| \`context_scan\` | After code changes — rescans dependencies (\`depth="module"\\|"symbol"\`) |
+| \`context_impact\` | Before editing — blast radius check |
+| \`context_search\` | Search graph by keyword (wraps SPARQL) |
 | \`schema\` | Explore ontology classes and properties |
-| \`query\` | Run any SPARQL query against the project graph |
-| \`push\` | Record decisions, issues, knowledge, sources, or session summaries |
-| \`doctor\` | Diagnose project health (config, store, hooks, CLAUDE.md) |
+| \`query\` | Run any SPARQL query against the graph |
+| \`push\` | Record decisions, issues, knowledge, sources, sessions |
+| \`delete\` | Remove specific triples or pattern-based deletion |
+| \`doctor\` | Diagnose project health |
 
-### Session Start — Sub-brain Query
+### Workflows
 
-At the start of each session, query for open Todos and recent Insights to restore working context:
+**Before working**: \`query\` graph for related decisions/knowledge/issues → \`context_impact\` on files to edit.
 
-\`\`\`sparql
-PREFIX otx: <https://opentology.dev/vocab#>
-SELECT ?type ?title ?status ?priority WHERE {
-  GRAPH <${sessionsUri}> {
-    { ?s a otx:Todo ; otx:title ?title ; otx:status ?status .
-      OPTIONAL { ?s otx:priority ?priority }
-      FILTER(?status = "open" || ?status = "in-progress")
-      BIND("todo" AS ?type) }
-    UNION
-    { ?s a otx:Insight ; otx:title ?title ; otx:confidence ?status .
-      BIND("insight" AS ?type) BIND("" AS ?priority) }
-  }
-} ORDER BY DESC(?priority) LIMIT 20
-\`\`\`
+**Search**: \`SELECT ?s ?title ?body WHERE { GRAPH <${contextUri}> { ?s a otx:Decision ; otx:title ?title ; otx:body ?body } FILTER(CONTAINS(LCASE(?title), "keyword")) } LIMIT 10\`
+
+**Ingest external sources**: (1) duplicate check by sourceUrl → (2) \`push\` \`otx:Source\` status "pending" → (3) read content → (4) extract \`otx:Knowledge\` linked via \`otx:relatedTo\` → (5) cross-reference existing graph → (6) flag contradictions as \`otx:Issue\` → (7) update status to "ingested".
+Source types: article | paper | code | transcript | documentation | video | podcast | book | other.
+
+**After working**: \`context_scan\` after significant code changes.
+
+**Session save**: After completing a meaningful work unit (feature, bugfix, PR, architecture decision), suggest \`/context-save\`. Skip for trivial Q&A, typo fixes, or config tweaks.
 
 ### Session End — Structured Recording
 
-Push a structured session at the end of each meaningful session. Use \`/context-save\` for the full workflow. Minimal example:
+Use \`/context-save\` for the full workflow. Minimal example:
 
 \`\`\`turtle
 @prefix otx: <https://opentology.dev/vocab#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-# Session with domain and chaining
 <urn:session:YYYY-MM-DD> a otx:Session ;
-    otx:title "Session summary" ;
-    otx:date "YYYY-MM-DD"^^xsd:date ;
-    otx:body "What was done" ;
-    otx:domain <urn:domain:{slug}> ;
-    otx:impact "medium" ;
-    otx:followsUp <urn:session:PREV-DATE> ;
+    otx:title "Summary" ; otx:date "YYYY-MM-DD"^^xsd:date ;
+    otx:body "What was done" ; otx:domain <urn:domain:{slug}> ;
+    otx:impact "medium" ; otx:followsUp <urn:session:PREV> ;
     otx:hasActivity <urn:activity:YYYY-MM-DD-1> .
 
-# Activity per task
 <urn:activity:YYYY-MM-DD-1> a otx:Activity ;
-    otx:activityType "feature" ;
-    otx:summary "What this task did" ;
+    otx:activityType "feature" ; otx:summary "Task description" ;
     otx:touchedModule <urn:module:src/path/file.ts> .
 
-# Open todo
 <urn:todo:YYYY-MM-DD-slug> a otx:Todo ;
-    otx:title "Next action" ;
-    otx:status "open" ;
-    otx:priority "high" ;
-    otx:createdIn <urn:session:YYYY-MM-DD> .
+    otx:title "Next action" ; otx:status "open" ;
+    otx:priority "high" ; otx:createdIn <urn:session:YYYY-MM-DD> .
 \`\`\`
 ${MARKER_END}`;
 }
