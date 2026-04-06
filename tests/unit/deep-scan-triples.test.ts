@@ -196,6 +196,69 @@ describe('generateSymbolTriples', () => {
     expect(quads.length).toBeGreaterThan(0);
   });
 
+  it('escapes CJK characters and control chars in Turtle literals', () => {
+    const result = makeResult({
+      classes: [{
+        name: '경기Service',
+        filePath: 'src/game',
+        baseClass: null,
+        interfaces: [],
+        methods: [{
+          name: '전반전시작',
+          returnType: 'GameTeam<전반전>',
+          parameters: [{ name: '상태', type: 'String' }],
+        }],
+        isAbstract: false,
+      }],
+      methodCalls: [
+        { caller: '경기Service.전반전시작', callee: 'GameTeam.create' },
+      ],
+    });
+
+    const triples = generateSymbolTriples(result);
+    expect(triples.length).toBeGreaterThan(0);
+
+    // Must parse as valid N-Triples (CJK in string literals)
+    const parser = new Parser({ format: 'N-Triples' });
+    const quads = parser.parse(triples.join('\n'));
+    expect(quads.length).toBeGreaterThan(0);
+
+    // Verify Korean text is preserved in parsed output
+    const titles = quads
+      .filter(q => q.predicate.value.endsWith('#title'))
+      .map(q => q.object.value);
+    expect(titles.some(t => t.includes('전반전'))).toBe(true);
+  });
+
+  it('escapes newlines and tabs in symbol names', () => {
+    const result = makeResult({
+      functions: [{
+        name: 'fn_with\nnewline',
+        filePath: 'src/dirty',
+        returnType: 'Map<string,\tvalue>',
+        parameters: [{ name: 'a\rb', type: 'str\ning' }],
+        isExported: true,
+      }],
+    });
+
+    const triples = generateSymbolTriples(result);
+
+    // No raw newline/tab/CR inside quoted strings
+    for (const triple of triples) {
+      const match = triple.match(/"([^"]*)"/g);
+      if (match) {
+        for (const m of match) {
+          expect(m).not.toMatch(/[\n\r\t]/);
+        }
+      }
+    }
+
+    // Must still parse
+    const parser = new Parser({ format: 'N-Triples' });
+    const quads = parser.parse(triples.join('\n'));
+    expect(quads.length).toBeGreaterThan(0);
+  });
+
   it('produces otx:Function triple for functions', () => {
     const result = makeResult({
       functions: [{

@@ -4,6 +4,7 @@
  */
 
 import type { DeepScanResult } from './deep-scanner.js';
+import { escapeTurtleLiteral } from './sparql-utils.js';
 
 const OTX = 'https://opentology.dev/vocab#';
 
@@ -19,9 +20,7 @@ function moduleUri(filePath: string): string {
   return `urn:module:${filePath}`;
 }
 
-function esc(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
+const esc = escapeTurtleLiteral;
 
 // ── Triple generation ───────────────────────────────────────────
 

@@ -18,6 +18,22 @@ export const WELL_KNOWN_PREFIXES: Record<string, string> = {
 
 // ── Term / Turtle helpers ─────────────────────────────────────────────
 
+/**
+ * Escape a string for use inside a Turtle double-quoted literal.
+ * Handles backslash, quotes, control characters, and non-BMP Unicode.
+ */
+export function escapeTurtleLiteral(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, (ch) => {
+      return '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0');
+    });
+}
+
 export function termToSparql(term: Quad['subject'] | Quad['predicate'] | Quad['object']): string {
   switch (term.termType) {
     case 'NamedNode':
@@ -25,12 +41,7 @@ export function termToSparql(term: Quad['subject'] | Quad['predicate'] | Quad['o
     case 'BlankNode':
       return `_:${term.value}`;
     case 'Literal': {
-      const escaped = term.value
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-        .replace(/\t/g, '\\t');
+      const escaped = escapeTurtleLiteral(term.value);
       if (term.language) {
         return `"${escaped}"@${term.language}`;
       }

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { OpenTologyConfig, addTrackedFile, saveConfig } from './config.js';
 import { createReadyAdapter } from './store-factory.js';
 import { extractDependencyGraph } from './codebase-scanner.js';
+import { escapeTurtleLiteral as escapeTurtle } from './sparql-utils.js';
 
 export interface SyncResult {
   sessionsRecovered: number;
@@ -269,6 +270,3 @@ export async function syncContext(
   return { sessionsRecovered, modulesUpdated, moduleStats, actions };
 }
 
-function escapeTurtle(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
-}
