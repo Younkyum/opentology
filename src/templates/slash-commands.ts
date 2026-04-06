@@ -59,10 +59,52 @@ Analyze the \`codebaseSnapshot\` field from the response and create Knowledge tr
       filename: 'context-load.md',
       content: `Use the context_load MCP tool to load the current project context.
 
+After loading, run these additional queries to surface structured session data:
+
+\`\`\`sparql
+# Open Todos (from structured session schema)
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?s ?title ?status ?priority ?created WHERE {
+  GRAPH <https://opentology.dev/opentology-context/sessions> {
+    ?s a otx:Todo ; otx:title ?title ; otx:status ?status .
+    FILTER(?status = "open" || ?status = "in-progress")
+    OPTIONAL { ?s otx:priority ?priority }
+    OPTIONAL { ?s otx:createdIn ?created }
+  }
+} ORDER BY DESC(?priority)
+\`\`\`
+
+\`\`\`sparql
+# Recent Insights
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?s ?title ?confidence ?domain WHERE {
+  GRAPH <https://opentology.dev/opentology-context/sessions> {
+    ?s a otx:Insight ; otx:title ?title .
+    OPTIONAL { ?s otx:confidence ?confidence }
+    OPTIONAL { ?s otx:domain ?domain }
+  }
+} LIMIT 5
+\`\`\`
+
+\`\`\`sparql
+# Domain activity summary (last 5 sessions)
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?domainTitle (COUNT(?a) AS ?activityCount) WHERE {
+  GRAPH <https://opentology.dev/opentology-context/sessions> {
+    ?session a otx:Session ; otx:hasActivity ?a .
+    OPTIONAL { ?session otx:domain ?d . ?d otx:title ?domainTitle }
+  }
+} GROUP BY ?domainTitle ORDER BY DESC(?activityCount) LIMIT 5
+\`\`\`
+
 Display the results in a readable format:
-- Recent sessions with dates and next todos
-- Open issues
-- Recent decisions
+- **Open Todos** — priority-sorted, with source session
+- **Recent Insights** — with confidence level
+- **Domain Activity** — which areas have been most active
+- **Recent Sessions** — with dates and next todos
+- **Open Issues** and **Recent Decisions** (from context_load)
+
+If the previous session has a \`nextTodo\`, highlight it as "Suggested next action".
 
 If context is not initialized, suggest running /context-init first.
 `,
@@ -158,6 +200,63 @@ Push to the sessions graph (use graph name "sessions").
 - **Insight confidence**: high (3+ evidence), medium (2 evidence), low (1 evidence / hunch)
 - **Domain**: reuse existing domains when possible. Query first before creating new ones.
 - **followsUp**: always link to the previous session if one exists
+`,
+    },
+    {
+      filename: 'context-todos.md',
+      content: `Manage open Todos in the OpenTology sessions graph.
+
+## Step 1 — List open Todos
+
+\`\`\`sparql
+PREFIX otx: <https://opentology.dev/vocab#>
+SELECT ?s ?title ?status ?priority ?createdIn WHERE {
+  GRAPH <https://opentology.dev/opentology-context/sessions> {
+    ?s a otx:Todo ; otx:title ?title ; otx:status ?status .
+    FILTER(?status = "open" || ?status = "in-progress")
+    OPTIONAL { ?s otx:priority ?priority }
+    OPTIONAL { ?s otx:createdIn ?createdIn }
+  }
+} ORDER BY DESC(?priority)
+\`\`\`
+
+Display as a numbered list with priority and status.
+
+## Step 2 — Ask for action
+
+Ask the user what they want to do:
+- **Start** a todo (open → in-progress)
+- **Complete** a todo (→ done, link resolvedIn to current session)
+- **Drop** a todo (→ dropped, ask for reason)
+- **Nothing** — just viewing
+
+## Step 3 — Update status
+
+Use the \`delete\` tool to remove the old status triple, then \`push\` the updated triples:
+
+\`\`\`turtle
+@prefix otx: <https://opentology.dev/vocab#> .
+
+# For "done":
+<{todo-uri}> otx:status "done" ;
+    otx:resolvedIn <urn:session:{today}> .
+
+# For "dropped":
+<{todo-uri}> otx:status "dropped" ;
+    otx:reason "{reason}" ;
+    otx:resolvedIn <urn:session:{today}> .
+
+# For "in-progress":
+<{todo-uri}> otx:status "in-progress" .
+\`\`\`
+
+### Delete old status
+Use SPARQL DELETE to remove the previous status triple before pushing the new one:
+\`\`\`sparql
+DELETE DATA { GRAPH <https://opentology.dev/opentology-context/sessions> {
+  <{todo-uri}> <https://opentology.dev/vocab#status> "{old-status}" .
+} }
+\`\`\`
 `,
     },
     {
