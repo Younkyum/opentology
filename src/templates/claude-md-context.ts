@@ -97,6 +97,18 @@ Types: article | paper | code | transcript | documentation | video | podcast | b
 
 - Run \`context_scan\` after significant code changes (\`depth="module"\` for fast, \`depth="symbol"\` for thorough).
 
+#### Proactive Session Save
+
+After completing a meaningful work unit, proactively suggest saving a session log. Trigger conditions:
+
+- **Feature/bugfix complete** — code changes committed or ready to commit
+- **PR created or merged** — a development cycle finished
+- **Architecture decision made** — important context worth preserving
+- **Multi-step task done** — research, refactor, or investigation concluded
+
+When triggered, suggest: "세션 로그를 저장할까요? (\`/context-save\`)"
+Do NOT suggest for: trivial Q&A, typo fixes, or config tweaks.
+
 #### Tool Reference
 
 | Tool | When to Use |
