@@ -367,4 +367,35 @@ describe('deep-scanner', () => {
       expect(result.languageHints.length).toBeGreaterThan(0);
     });
   });
+
+  describe('files option', () => {
+    it('scans only provided files, skipping full discovery', async () => {
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/included.ts', 'export class Included {}');
+      await writeSourceFile(tempDir, 'src/excluded.ts', 'export class Excluded {}');
+
+      const { join } = await import('node:path');
+      const result = await deepScan(tempDir, {
+        files: [join(tempDir, 'src/included.ts')],
+      });
+
+      if (!result.deepScanAvailable) return;
+
+      const classNames = result.classes.map(c => c.name);
+      expect(classNames).toContain('Included');
+      expect(classNames).not.toContain('Excluded');
+    });
+
+    it('normalizes absolute paths to relative', async () => {
+      await writeTsConfig(tempDir);
+      await writeSourceFile(tempDir, 'src/widget.ts', 'export class Widget {}');
+
+      const { join } = await import('node:path');
+      const absPath = join(tempDir, 'src/widget.ts');
+      const result = await deepScan(tempDir, { files: [absPath] });
+
+      if (!result.deepScanAvailable) return;
+      expect(result.classes.some(c => c.name === 'Widget')).toBe(true);
+    });
+  });
 });

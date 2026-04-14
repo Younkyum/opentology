@@ -19,6 +19,7 @@ export interface DeepScanOptions {
   timeoutMs?: number;           // default 30_000
   includeMethodCalls?: boolean; // default false
   languages?: string[];         // e.g. ['typescript', 'python'] — auto-detect if omitted
+  files?: string[];             // pre-filtered file list (absolute paths) — skips discoverFiles()
 }
 
 export interface MethodInfo {
@@ -269,8 +270,21 @@ export async function deepScan(
   // Collect all extensions from available extractors
   const allExtensions = available.flatMap(e => e.extensions);
 
-  // Discover files
-  const { files, total } = await discoverFiles(rootDir, allExtensions, maxFiles);
+  // Discover files — skip if caller provided a pre-filtered list
+  let files: string[];
+  let total: number;
+  if (options?.files && options.files.length > 0) {
+    const { relative } = await import('node:path');
+    const normalized = options.files.map(f =>
+      f.startsWith('/') ? relative(rootDir, f) : f,
+    ).filter(f => allExtensions.some(e => f.endsWith(e)));
+    files = normalized.slice(0, maxFiles);
+    total = normalized.length;
+  } else {
+    const discovered = await discoverFiles(rootDir, allExtensions, maxFiles);
+    files = discovered.files;
+    total = discovered.total;
+  }
 
   if (total > maxFiles) {
     return {
