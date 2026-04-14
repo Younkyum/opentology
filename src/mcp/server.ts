@@ -32,9 +32,12 @@ import { generatePreEditHookScript } from '../templates/pre-edit-hook.js';
 import { generateUserPromptHookScript } from '../templates/user-prompt-hook.js';
 import { generatePostErrorHookScript } from '../templates/post-error-hook.js';
 import { generateStopSessionHookScript } from '../templates/stop-session-hook.js';
+import { generatePostEditHookScript } from '../templates/post-edit-hook.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import { runDoctor } from '../lib/doctor.js';
 import { ask } from '../lib/ask-engine.js';
+import { getChangedSourceFiles } from '../lib/git-utils.js';
+import { readScanState, writeScanState, getCurrentGitRef } from '../lib/scan-state.js';
 
 export interface ContextLoadOutput {
   projectId: string;
@@ -464,11 +467,71 @@ async function handleInfer(args: Record<string, unknown>): Promise<unknown> {
   return result;
 }
 
-async function handleContextScan(args: Record<string, unknown>): Promise<unknown> {
+export async function handleContextScan(args: Record<string, unknown>): Promise<unknown> {
   const depth = (args.depth as string | undefined) ?? 'module';
+  const incremental = (args.incremental as boolean | undefined) ?? false;
+  const rootDir = process.cwd();
+
+  // Incremental only applies to symbol depth; warn and fall through for module depth
+  if (incremental && depth !== 'symbol') {
+    return {
+      incremental: true,
+      warning: 'incremental=true only applies to depth="symbol". Running full module scan.',
+      ...await scanCodebase(rootDir),
+    };
+  }
+
+  // Incremental mode: only scan files changed since last scan
+  if (incremental && depth === 'symbol') {
+    const state = readScanState(rootDir);
+    if (state) {
+      const changedFiles = getChangedSourceFiles(rootDir, state.lastScanRef);
+      if (changedFiles.length === 0) {
+        return {
+          incremental: true,
+          message: 'no source changes since last scan',
+          lastScanRef: state.lastScanRef,
+          lastScanAt: state.lastScanAt,
+        };
+      }
+      const scanResult = await deepScan(rootDir, {
+        maxFiles: args.maxFiles as number | undefined,
+        maxSymbols: args.maxSymbols as number | undefined,
+        timeoutMs: args.timeoutMs as number | undefined,
+        includeMethodCalls: args.includeMethodCalls as boolean | undefined,
+        languages: args.languages as string[] | undefined,
+        files: changedFiles,
+      });
+      if (scanResult.deepScanAvailable) {
+        try {
+          const config = loadConfig();
+          const contextUri = `${config.graphUri}/context`;
+          const adapter = await createReadyAdapter(config);
+          const pushStats = await pushSymbolTriples(adapter, contextUri, scanResult);
+          await persistGraph(adapter, config, contextUri);
+          writeScanState(rootDir, {
+            lastScanRef: getCurrentGitRef(rootDir),
+            lastScanAt: new Date().toISOString(),
+            scannedFiles: changedFiles,
+          });
+          return {
+            incremental: true,
+            changedFiles: changedFiles.length,
+            triplesInserted: pushStats.triplesInserted,
+            triplesFailed: pushStats.triplesFailed,
+          };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { incremental: true, changedFiles: changedFiles.length, pushError: msg };
+        }
+      }
+      return { ...scanResult, incremental: true };
+    }
+    // No state yet — fall through to full scan which will write the baseline
+  }
 
   if (depth === 'symbol') {
-    const scanResult = await deepScan(process.cwd(), {
+    const scanResult = await deepScan(rootDir, {
       maxFiles: args.maxFiles as number | undefined,
       maxSymbols: args.maxSymbols as number | undefined,
       timeoutMs: args.timeoutMs as number | undefined,
@@ -517,6 +580,11 @@ async function handleContextScan(args: Record<string, unknown>): Promise<unknown
       }
 
       await persistGraph(adapter, config, contextUri);
+      writeScanState(rootDir, {
+        lastScanRef: getCurrentGitRef(rootDir),
+        lastScanAt: new Date().toISOString(),
+        scannedFiles: [],
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       pushWarnings.push(`Push failed: ${msg}`);
@@ -763,6 +831,13 @@ async function handleContextInit(args: Record<string, unknown>): Promise<unknown
     mkdirSync(hookDir, { recursive: true });
     writeFileSync(stopSessionHookPath, generateStopSessionHookScript(), 'utf-8');
     actions.push('Generated hook: .opentology/hooks/stop-session-reminder.mjs');
+  }
+
+  const postEditHookPath = join(hookDir, 'post-edit.mjs');
+  if (!existsSync(postEditHookPath) || force) {
+    mkdirSync(hookDir, { recursive: true });
+    writeFileSync(postEditHookPath, generatePostEditHookScript(), 'utf-8');
+    actions.push('Generated hook: .opentology/hooks/post-edit.mjs');
   }
 
   // Update CLAUDE.md
@@ -1706,6 +1781,10 @@ export async function startMcpServer(): Promise<void> {
               type: 'array',
               items: { type: 'string' },
               description: 'Languages to scan when depth="symbol" (e.g. ["typescript", "python", "go", "rust", "java", "swift"]). Auto-detects if omitted.',
+            },
+            incremental: {
+              type: 'boolean',
+              description: 'Only scan files changed since the last scan (reads .opentology/last-scan.json). Only applies when depth="symbol". Falls back to full scan when no prior scan state exists.',
             },
           },
         },

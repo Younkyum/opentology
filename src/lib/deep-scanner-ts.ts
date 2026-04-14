@@ -3,6 +3,7 @@
  * ts-morph is a peerDependency; when absent isAvailable() returns false.
  */
 
+import { normalize, resolve } from 'node:path';
 import type { ClassInfo, InterfaceInfo, FunctionInfo, MethodCallInfo } from './deep-scanner.js';
 import type { LanguageExtractor, ExtractedSymbols } from './language-extractor.js';
 
@@ -198,7 +199,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
   }
 
   async extract(
-    _filePaths: string[],
+    filePaths: string[],
     rootDir: string,
     options: { maxSymbols: number; timeoutMs: number; includeMethodCalls: boolean },
   ): Promise<ExtractedSymbols & { warnings: string[]; capped: boolean; fatal?: string }> {
@@ -219,9 +220,17 @@ export class TypeScriptExtractor implements LanguageExtractor {
       return { classes: [], interfaces: [], functions: [], methodCalls: [], warnings: [], capped: false, fatal: `Failed to load tsconfig.json from ${rootDir}` };
     }
 
+    // When a filtered file list is provided, restrict to only those files.
+    // Normalise both sides with path.resolve + path.normalize to handle trailing
+    // slashes, symlinks, and relative vs absolute path mismatches.
+    const allowedPaths = filePaths.length > 0
+      ? new Set(filePaths.map(f => normalize(resolve(rootDir, f))))
+      : null;
+
     const sourceFiles = project.getSourceFiles()
       .filter(sf => !sf.getFilePath().includes('node_modules'))
-      .filter(sf => !sf.getFilePath().includes('/dist/'));
+      .filter(sf => !sf.getFilePath().includes('/dist/'))
+      .filter(sf => allowedPaths === null || allowedPaths.has(normalize(sf.getFilePath())));
 
     const start = Date.now();
     const classes: ClassInfo[] = [];
