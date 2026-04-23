@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertTripleLimit, MAX_TRIPLES_PER_PUSH } from '../../src/mcp/server.js';
+import { assertTripleLimit, MAX_TRIPLES_PER_PUSH } from '../../src/lib/persist.js';
 
 describe('assertTripleLimit', () => {
   it('allows triples within the limit', () => {
