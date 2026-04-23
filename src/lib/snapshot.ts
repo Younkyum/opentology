@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, unlink
 import { join } from 'node:path';
 import type { StoreAdapter } from './store-adapter.js';
 import type { OpenTologyConfig } from './config.js';
-import { persistGraph } from '../mcp/server.js';
+import { persistGraph } from './persist.js';
 
 const DEFAULT_RETENTION = 5;
 

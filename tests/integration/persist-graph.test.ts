@@ -6,7 +6,7 @@ const TMP = join(__dirname, '../../.test-tmp-persist');
 const GRAPH_URI = 'https://opentology.dev/test-persist/context';
 
 describe('persistGraph', () => {
-  let persistGraph: typeof import('../../src/mcp/server.js').persistGraph;
+  let persistGraph: typeof import('../../src/lib/persist.js').persistGraph;
   let EmbeddedAdapter: typeof import('../../src/lib/embedded-adapter.js').EmbeddedAdapter;
   let originalCwd: string;
 
@@ -31,7 +31,7 @@ describe('persistGraph', () => {
     process.chdir(TMP);
 
     // Dynamic import to pick up the test cwd
-    const serverMod = await import('../../src/mcp/server.js');
+    const serverMod = await import('../../src/lib/persist.js');
     persistGraph = serverMod.persistGraph;
     const adapterMod = await import('../../src/lib/embedded-adapter.js');
     EmbeddedAdapter = adapterMod.EmbeddedAdapter;
