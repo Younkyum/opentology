@@ -49,20 +49,32 @@ export async function runDoctor(): Promise<CheckResult[]> {
     results.push({ name: 'Hooks', status: 'warn', message: 'Hook scripts missing. Run `opentology context init`.' });
   }
 
-  // 5. Hook registration in .claude/settings.json
-  const settingsPath = join(process.cwd(), '.claude', 'settings.json');
-  if (existsSync(settingsPath)) {
+  // 5. Hook registration in Claude settings
+  const settingsJsonPath = join(process.cwd(), '.claude', 'settings.json');
+  const settingsLocalPath = join(process.cwd(), '.claude', 'settings.local.json');
+  const settingsPath = existsSync(settingsJsonPath)
+    ? settingsJsonPath
+    : (existsSync(settingsLocalPath) ? settingsLocalPath : null);
+
+  if (settingsPath) {
     try {
-      const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
-      const hooks = settings.hooks ?? {};
-      const hasSession = (hooks.SessionStart ?? []).some(
-        (h: Record<string, string>) => h.command?.includes('session-start.mjs')
-      );
-      const hasPreEdit = (hooks.PreToolUse ?? []).some(
-        (h: Record<string, string>) => h.command?.includes('pre-edit.mjs')
-      );
+      type HookCommand = { command?: string };
+      type HookRule = { hooks?: HookCommand[] };
+      type HookConfig = { SessionStart?: HookRule[]; PreToolUse?: HookRule[] };
+
+      const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as { hooks?: HookConfig };
+      const hooks: HookConfig = settings.hooks ?? {};
+
+      const hasHook = (key: keyof HookConfig, needle: string): boolean => {
+        const rules = hooks[key] ?? [];
+        return rules.some((rule) => (rule.hooks ?? []).some((h) => typeof h.command === 'string' && h.command.includes(needle)));
+      };
+
+      const hasSession = hasHook('SessionStart', 'session-start.mjs');
+      const hasPreEdit = hasHook('PreToolUse', 'pre-edit.mjs');
+
       if (hasSession && hasPreEdit) {
-        results.push({ name: 'Settings', status: 'ok', message: 'Both hooks registered in .claude/settings.json' });
+        results.push({ name: 'Settings', status: 'ok', message: `Both hooks registered in ${settingsPath.replace(process.cwd() + '/', '')}` });
       } else {
         const missing = [];
         if (!hasSession) missing.push('SessionStart');
@@ -70,10 +82,10 @@ export async function runDoctor(): Promise<CheckResult[]> {
         results.push({ name: 'Settings', status: 'warn', message: `Missing hooks: ${missing.join(', ')}. Run \`opentology context init\`.` });
       }
     } catch {
-      results.push({ name: 'Settings', status: 'warn', message: 'Cannot parse .claude/settings.json' });
+      results.push({ name: 'Settings', status: 'warn', message: `Cannot parse ${settingsPath.replace(process.cwd() + '/', '')}` });
     }
   } else {
-    results.push({ name: 'Settings', status: 'warn', message: 'No .claude/settings.json found. Run `opentology context init`.' });
+    results.push({ name: 'Settings', status: 'warn', message: 'No Claude settings found (.claude/settings.json or .claude/settings.local.json). Run `opentology context init`.' });
   }
 
   // 6. CLAUDE.md
