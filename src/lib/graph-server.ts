@@ -173,7 +173,9 @@ function html(config: OpenTologyConfig): string {
       try {
         const schema = await fetch('/api/schema').then(r => r.json());
         (schema.classes || []).forEach(c => classSet.add(c));
-      } catch {}
+      } catch (err) {
+        console.warn('Failed to load schema for class highlighting:', err);
+      }
 
       nodesDS = new vis.DataSet();
       edgesDS = new vis.DataSet();
@@ -209,7 +211,9 @@ function html(config: OpenTologyConfig): string {
           const schema = await fetch('/api/schema').then(r => r.json());
           classSet = new Set();
           (schema.classes || []).forEach(c => classSet.add(c));
-        } catch {}
+        } catch (err) {
+          console.warn('Failed to refresh schema for class highlighting:', err);
+        }
         await runQuery();
       } finally {
         btn.innerHTML = '&#8635; Refresh';

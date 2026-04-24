@@ -619,8 +619,17 @@ export async function handleContextLoad(): Promise<ContextLoadOutput> {
     output.warnings!.push(`Decisions query failed: ${(err as Error).message}`);
   }
 
-  try { output.meta.contextTripleCount = await adapter.getGraphTripleCount(contextUri); } catch { /* */ }
-  try { output.meta.sessionsTripleCount = await adapter.getGraphTripleCount(sessionsUri); } catch { /* */ }
+  try {
+    output.meta.contextTripleCount = await adapter.getGraphTripleCount(contextUri);
+  } catch (err) {
+    output.warnings!.push(`contextTripleCount failed: ${(err as Error).message}`);
+  }
+
+  try {
+    output.meta.sessionsTripleCount = await adapter.getGraphTripleCount(sessionsUri);
+  } catch (err) {
+    output.warnings!.push(`sessionsTripleCount failed: ${(err as Error).message}`);
+  }
 
   if (output.warnings!.length === 0) delete output.warnings;
   return output;

@@ -17,6 +17,7 @@ import { startGraphServer } from '../lib/graph-server.js';
 import { generateSlashCommands } from '../templates/slash-commands.js';
 import { runDoctor } from '../lib/doctor.js';
 import { ask } from '../lib/ask-engine.js';
+import { getPackageVersion } from '../lib/version.js';
 
 import { resolveConfig, handleInit, handleValidate, handlePush, handleQuery, handlePull, handleDrop, handleDelete, handleDiff } from './handlers/rdf.js';
 import { handleStatus, handleGraphList, handleGraphCreate, handleGraphDrop, handleRollback, handleDoctor, handleAsk } from './handlers/system.js';
@@ -32,9 +33,13 @@ import {
 
 export type { ContextLoadOutput } from './handlers/context.js';
 
+export function getMcpServerIdentity(): { name: string; version: string } {
+  return { name: 'opentology', version: getPackageVersion() };
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new Server(
-    { name: 'opentology', version: '0.1.0' },
+    getMcpServerIdentity(),
     { capabilities: { tools: {}, resources: {}, prompts: {} } }
   );
 
