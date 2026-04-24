@@ -4,6 +4,7 @@
  */
 
 import type { LanguageExtractor, DependencyModel } from './language-extractor.js';
+import { execFileSync } from 'node:child_process';
 import { TypeScriptExtractor } from './deep-scanner-ts.js';
 import { PythonExtractor } from './extractors/python.js';
 import { GoExtractor } from './extractors/go.js';
@@ -107,13 +108,66 @@ function getAllExtractors(): LanguageExtractor[] {
   ];
 }
 
-function detectLanguages(rootDir: string, extractors: LanguageExtractor[]): LanguageExtractor[] {
-  // For now, return all available extractors.
-  // Future: scan rootDir for file extensions and filter.
-  return extractors;
+async function detectLanguages(rootDir: string, extractors: LanguageExtractor[]): Promise<LanguageExtractor[]> {
+  const { readdir } = await import('node:fs/promises');
+  const { join, extname } = await import('node:path');
+
+  const excluded = new Set(['.git', 'node_modules', 'dist', 'build', '.opentology', '.claude', '.omc']);
+  const targetExts = new Set(extractors.flatMap((e) => e.extensions.map((x) => x.toLowerCase())));
+  const foundExts = new Set<string>();
+
+  const dirs: string[] = [rootDir];
+  let visited = 0;
+  const maxEntries = 5000;
+
+  while (dirs.length > 0 && foundExts.size < targetExts.size && visited < maxEntries) {
+    const dir = dirs.pop()!;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      visited++;
+      if (visited >= maxEntries) break;
+
+      if (entry.isDirectory()) {
+        if (excluded.has(entry.name)) continue;
+        dirs.push(join(dir, entry.name));
+        continue;
+      }
+
+      if (!entry.isFile()) continue;
+      const ext = extname(entry.name).toLowerCase();
+      if (targetExts.has(ext)) {
+        foundExts.add(ext);
+        if (foundExts.size >= targetExts.size) break;
+      }
+    }
+  }
+
+  const filtered = extractors.filter((e) => e.extensions.some((x) => foundExts.has(x.toLowerCase())));
+  return filtered.length > 0 ? filtered : extractors;
 }
 
 // ── File discovery ─────────────────────────────────────────────
+
+function isGitWorkTree(rootDir: string): boolean {
+  // Use execFileSync to avoid shell-quoting edge cases.
+  try {
+    const out = execFileSync('git', ['-C', rootDir, 'rev-parse', '--is-inside-work-tree'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 3000,
+      maxBuffer: 1024 * 1024,
+    }).trim();
+    return out === 'true';
+  } catch {
+    return false;
+  }
+}
 
 async function discoverFiles(
   rootDir: string,
@@ -125,17 +179,17 @@ async function discoverFiles(
   // Use git ls-files if inside a git repo, otherwise fall back to find
   const extGlob = extensions.map(e => `*${e}`);
   let stdout: string;
-  try {
+
+  if (isGitWorkTree(rootDir)) {
     stdout = execSync(
       `git -C "${rootDir}" ls-files -- ${extGlob.map(g => `'${g}'`).join(' ')}`,
-      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 },
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] },
     );
-  } catch {
-    // Not a git repo — fall back
+  } else {
     const patterns = extensions.map(e => `-name '*${e}'`).join(' -o ');
     stdout = execSync(
       `find "${rootDir}" -type f \\( ${patterns} \\) -not -path '*/node_modules/*' -not -path '*/dist/*'`,
-      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 },
+      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] },
     );
   }
 
@@ -183,6 +237,7 @@ async function discoverUnsupportedFiles(
     stdout = execSync(`git -C "${rootDir}" ls-files`, {
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
   } catch {
     return [];
@@ -266,8 +321,13 @@ export async function deepScan(
     };
   }
 
-  // Collect all extensions from available extractors
-  const allExtensions = available.flatMap(e => e.extensions);
+  // Filter to languages present in the codebase (unless user explicitly requested languages)
+  const activeExtractors = requestedLanguages
+    ? available
+    : await detectLanguages(rootDir, available);
+
+  // Collect all extensions from active extractors
+  const allExtensions = activeExtractors.flatMap(e => e.extensions);
 
   // Discover files
   const { files, total } = await discoverFiles(rootDir, allExtensions, maxFiles);
@@ -280,7 +340,7 @@ export async function deepScan(
       functions: [],
       methodCalls: [],
       unsupportedFiles: [],
-      languageHints: buildLanguageHints(available),
+      languageHints: buildLanguageHints(activeExtractors),
       fileCount: total,
       symbolCount: 0,
       scanDurationMs: Date.now() - start,
@@ -291,11 +351,11 @@ export async function deepScan(
 
   // Group files by extractor
   const filesByExtractor = new Map<LanguageExtractor, string[]>();
-  for (const ext of available) {
+  for (const ext of activeExtractors) {
     filesByExtractor.set(ext, []);
   }
   for (const file of files) {
-    for (const ext of available) {
+    for (const ext of activeExtractors) {
       if (ext.extensions.some(e => file.endsWith(e))) {
         filesByExtractor.get(ext)!.push(file);
         break;
@@ -351,7 +411,7 @@ export async function deepScan(
     + functions.length;
 
   // Discover unsupported language files
-  const supportedExtensions = new Set(available.flatMap(e => e.extensions));
+  const supportedExtensions = new Set(activeExtractors.flatMap(e => e.extensions));
   const unsupportedFiles = await discoverUnsupportedFiles(rootDir, supportedExtensions);
 
   return {
@@ -361,7 +421,7 @@ export async function deepScan(
     functions,
     methodCalls,
     unsupportedFiles,
-    languageHints: buildLanguageHints(available),
+    languageHints: buildLanguageHints(activeExtractors),
     fileCount: files.length,
     symbolCount,
     scanDurationMs: Date.now() - start,
